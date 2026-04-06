@@ -45,6 +45,22 @@ export async function fetchEmployeeBalances(
   return (data ?? []) as EmployeeBalance[]
 }
 
+export async function updateEmployeeBalance(
+  employeeId: string,
+  categoryId: string,
+  remainingDays: number,
+  workspaceId: string
+) {
+  const { error } = await supabase
+    .from("employee_balances")
+    .update({ remaining_days: remainingDays, updated_at: new Date().toISOString() })
+    .eq("employee_id", employeeId)
+    .eq("category_id", categoryId)
+    .eq("workspace_id", workspaceId)
+
+  if (error) throw error
+}
+
 export interface CreateTimeOffRecordParams {
   workspace_id: string
   employee_id: string

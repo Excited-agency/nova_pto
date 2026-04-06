@@ -5,6 +5,7 @@ import {
   UserPlus,
   UserSearch,
   Search,
+  Eye,
   PencilLine,
   UserMinus,
   UserCheck,
@@ -74,6 +75,7 @@ interface EmployeeRowProps {
   departmentName: string
   debouncedSearch: string
   onToggleSelect: (id: string, checked: boolean) => void
+  onNavigateToDetails: (id: string) => void
   onNavigateToEdit: (id: string) => void
   onDeactivate: (emp: Profile) => void
   onActivate: (emp: Profile) => void
@@ -87,6 +89,7 @@ const EmployeeRow = memo(function EmployeeRow({
   departmentName,
   debouncedSearch,
   onToggleSelect,
+  onNavigateToDetails,
   onNavigateToEdit,
   onDeactivate,
   onActivate,
@@ -98,7 +101,7 @@ const EmployeeRow = memo(function EmployeeRow({
     <div
       className={`flex hover:bg-muted/50${emp.status === "active" ? " cursor-pointer" : ""}`}
       onClick={() => {
-        if (emp.status === "active") onNavigateToEdit(emp.id)
+        if (emp.status === "active") onNavigateToDetails(emp.id)
       }}
     >
       <div onClick={(e) => e.stopPropagation()}>
@@ -180,6 +183,15 @@ const EmployeeRow = memo(function EmployeeRow({
                   ? [
                       {
                         items: [
+                          {
+                            type: "icon",
+                            icon: <Eye className="size-4" />,
+                            label: "View details",
+                            onClick: () => {
+                              setPopoverOpen(false)
+                              onNavigateToDetails(emp.id)
+                            },
+                          },
                           {
                             type: "icon",
                             icon: <PencilLine className="size-4" />,
@@ -353,6 +365,10 @@ export function EmployeesPage() {
       return next
     })
   }, [])
+
+  const handleNavigateToDetails = useCallback((id: string) => {
+    navigate(`/employees/${id}`)
+  }, [navigate])
 
   const handleNavigateToEdit = useCallback((id: string) => {
     navigate(`/employees/${id}/edit`)
@@ -621,6 +637,7 @@ export function EmployeesPage() {
                   departmentName={emp.department_id ? departmentMap.get(emp.department_id) ?? "—" : "—"}
                   debouncedSearch={debouncedSearch}
                   onToggleSelect={handleToggleSelect}
+                  onNavigateToDetails={handleNavigateToDetails}
                   onNavigateToEdit={handleNavigateToEdit}
                   onDeactivate={handleDeactivate}
                   onActivate={handleActivate}

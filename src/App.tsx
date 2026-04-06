@@ -45,6 +45,7 @@ const EmployeesPage = lazy(() => import("@/pages/employees").then(m => ({ defaul
 const AccessRestrictedPage = lazy(() => import("@/pages/access-restricted").then(m => ({ default: m.AccessRestrictedPage })))
 const SettingsPage = lazy(() => import("@/pages/settings").then(m => ({ default: m.SettingsPage })))
 const AddEmployeePage = lazy(() => import("@/pages/add-employee").then(m => ({ default: m.AddEmployeePage })))
+const EmployeeDetailsPage = lazy(() => import("@/pages/employee-details").then(m => ({ default: m.EmployeeDetailsPage })))
 const EditEmployeePage = lazy(() => import("@/pages/edit-employee").then(m => ({ default: m.EditEmployeePage })))
 const TimeOffSetupPage = lazy(() => import("@/pages/time-off-setup").then(m => ({ default: m.TimeOffSetupPage })))
 const AddCategoryPage = lazy(() => import("@/pages/add-category").then(m => ({ default: m.AddCategoryPage })))
@@ -82,6 +83,7 @@ export default function App() {
               <Route path="requests" element={<RequestsRoute />} />
               <Route path="employees" element={<EmployeesPage />} />
               <Route path="employees/new" element={<AddEmployeePage />} />
+              <Route path="employees/:id" element={<EmployeeDetailsPage />} />
               <Route path="employees/:id/edit" element={<EditEmployeePage />} />
               <Route path="calendar" element={<CalendarPage />} />
               <Route path="time-off-setup" element={<TimeOffSetupPage />} />

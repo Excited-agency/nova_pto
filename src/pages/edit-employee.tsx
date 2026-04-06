@@ -53,32 +53,41 @@ export function EditEmployeePage() {
       title: "Changes saved successfully",
       description: "Employee details have been updated",
     })
-    navigate("/employees")
+    navigate(`/employees/${id}`)
   }
+
+  const header = (
+    <div className="flex items-center gap-2 border-b border-border px-4 h-[60px] shrink-0">
+      <button
+        className="flex items-center justify-center size-7 rounded-[10px] shrink-0 text-foreground hover:bg-accent transition-colors"
+        onClick={() => navigate("/employees")}
+      >
+        <Users className="size-4" />
+      </button>
+      <div className="flex items-center h-6 pr-2 relative shrink-0">
+        <Separator orientation="vertical" />
+      </div>
+      <BreadcrumbItem
+        text="Employees"
+        onClick={() => navigate("/employees")}
+      />
+      <ChevronRight className="size-4 text-muted-foreground shrink-0" />
+      <BreadcrumbItem
+        text="Employee details"
+        onClick={() => navigate(`/employees/${id}`)}
+      />
+      <ChevronRight className="size-4 text-muted-foreground shrink-0" />
+      <BreadcrumbItem
+        text="Edit details"
+        className="text-foreground font-medium"
+      />
+    </div>
+  )
 
   if (loading) {
     return (
       <div className="flex flex-col size-full">
-        <div className="flex items-center gap-2 border-b border-border px-4 h-[60px] shrink-0">
-          <button
-            className="flex items-center justify-center size-7 rounded-[10px] shrink-0 text-foreground hover:bg-accent transition-colors"
-            onClick={() => navigate("/employees")}
-          >
-            <Users className="size-4" />
-          </button>
-          <div className="flex items-center h-6 pr-2 relative shrink-0">
-            <Separator orientation="vertical" />
-          </div>
-          <BreadcrumbItem
-            text="Employees"
-            onClick={() => navigate("/employees")}
-          />
-          <ChevronRight className="size-4 text-muted-foreground shrink-0" />
-          <BreadcrumbItem
-            text="Edit employee details"
-            className="text-foreground font-medium"
-          />
-        </div>
+        {header}
         <div className="flex-1 flex items-center justify-center">
           <div className="size-5 animate-spin rounded-full border-2 border-muted-foreground border-t-foreground" />
         </div>
@@ -105,27 +114,7 @@ export function EditEmployeePage() {
 
   return (
     <div className="flex flex-col size-full">
-      {/* Header */}
-      <div className="flex items-center gap-2 border-b border-border px-4 h-[60px] shrink-0">
-        <button
-          className="flex items-center justify-center size-7 rounded-[10px] shrink-0 text-foreground hover:bg-accent transition-colors"
-          onClick={() => navigate("/employees")}
-        >
-          <Users className="size-4" />
-        </button>
-        <div className="flex items-center h-6 pr-2 relative shrink-0">
-          <Separator orientation="vertical" />
-        </div>
-        <BreadcrumbItem
-          text="Employees"
-          onClick={() => navigate("/employees")}
-        />
-        <ChevronRight className="size-4 text-muted-foreground shrink-0" />
-        <BreadcrumbItem
-          text="Edit employee details"
-          className="text-foreground font-medium"
-        />
-      </div>
+      {header}
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto">
@@ -136,7 +125,7 @@ export function EditEmployeePage() {
           subtitle="Update the personal information and role of your employee"
           submitLabel="Save changes"
           onSubmit={handleSubmit}
-          onCancel={() => navigate("/employees")}
+          onCancel={() => navigate(`/employees/${id}`)}
         />
       </div>
     </div>

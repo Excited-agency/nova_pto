@@ -4,6 +4,7 @@ import {
   fetchTimeOffRequests,
   fetchEmployeeBalance,
   fetchEmployeeBalances,
+  updateEmployeeBalance,
   createTimeOffRecord,
   updateTimeOffRequestStatus,
   approveTimeOffRequest,
@@ -173,6 +174,39 @@ export function useSubmitTimeOffRequestMutation() {
     onSuccess: () => {
       if (profile) {
         queryClient.invalidateQueries({ queryKey: myRequestKeys.all(profile.id) })
+      }
+    },
+  })
+}
+
+export function useUpdateEmployeeBalancesMutation() {
+  const queryClient = useQueryClient()
+  const { workspace } = useAuth()
+
+  return useMutation({
+    mutationFn: async (params: {
+      employeeId: string
+      updates: { categoryId: string; remainingDays: number }[]
+    }) => {
+      await Promise.all(
+        params.updates.map((u) =>
+          updateEmployeeBalance(
+            params.employeeId,
+            u.categoryId,
+            u.remainingDays,
+            workspace!.id
+          )
+        )
+      )
+    },
+    onSuccess: (_data, variables) => {
+      if (workspace) {
+        queryClient.invalidateQueries({
+          queryKey: employeeBalanceKeys.allForEmployee(
+            workspace.id,
+            variables.employeeId
+          ),
+        })
       }
     },
   })
