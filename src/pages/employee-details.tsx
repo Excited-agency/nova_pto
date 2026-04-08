@@ -269,7 +269,7 @@ export function EmployeeDetailsPage() {
                                 label: "Edit details",
                                 onClick: () => {
                                   setActionsOpen(false)
-                                  navigate(`/employees/${id}/edit`)
+                                  navigate(`/employees/${id}/edit`, { state: { from: "details" } })
                                 },
                               },
                               {

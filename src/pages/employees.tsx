@@ -12,6 +12,7 @@ import {
   Trash2,
   EllipsisIcon,
   X,
+  Upload,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -55,6 +56,7 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { cn, getInitials, getDisplayName } from "@/lib/utils"
 import { addToast } from "@/lib/toast"
 import { employeeKeys, activeEmployeeKeys } from "@/lib/query-keys"
+import { CsvImportModal } from "@/components/csv-import-modal"
 import type { EmployeeStatus } from "@/types/employee"
 
 type TabValue = EmployeeStatus
@@ -293,6 +295,9 @@ export function EmployeesPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
 
+  // CSV import modal state
+  const [importOpen, setImportOpen] = useState(false)
+
   const departmentMap = useMemo(() => {
     const map = new Map<string, string>()
     for (const d of departments) {
@@ -371,7 +376,7 @@ export function EmployeesPage() {
   }, [navigate])
 
   const handleNavigateToEdit = useCallback((id: string) => {
-    navigate(`/employees/${id}/edit`)
+    navigate(`/employees/${id}/edit`, { state: { from: "list" } })
   }, [navigate])
 
   const handleAddEmployee = useCallback(() => {
@@ -486,6 +491,9 @@ export function EmployeesPage() {
           text="Employees"
           className="flex-1 text-foreground font-medium"
         />
+        <Button variant="secondary" onClick={() => setImportOpen(true)}>
+          Import CSV
+        </Button>
         <Button onClick={handleAddEmployee}>
           <UserPlus />
           Add employee
@@ -773,6 +781,9 @@ export function EmployeesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* CSV Import Modal */}
+      <CsvImportModal open={importOpen} onOpenChange={setImportOpen} />
     </div>
   )
 }

@@ -66,14 +66,41 @@ export interface InviteEmployeeData {
 
 export async function inviteEmployee(data: InviteEmployeeData) {
   const { getSiteUrl } = await import("@/lib/site-url")
-  const { data: result, error } = await supabase.functions.invoke(
-    "invite-employee",
-    { body: { ...data, redirect_url: `${getSiteUrl()}/auth/callback` } }
+  const { data: sessionData } = await supabase.auth.getSession()
+  const token = sessionData.session?.access_token
+
+  if (!token) throw new Error("Not authenticated")
+
+  const res = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/invite-employee`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({
+        ...data,
+        redirect_url: `${getSiteUrl()}/auth/callback`,
+      }),
+    }
   )
 
-  if (error) throw error
-  if (result?.error) throw new Error(result.error)
-  return result.profile
+  const text = await res.text()
+  let body: Record<string, unknown> = {}
+  try {
+    body = JSON.parse(text)
+  } catch {
+    // Response is not JSON
+  }
+
+  if (!res.ok || body.error) {
+    const message = (body.error ?? body.msg ?? body.message ?? text) || `Request failed (${res.status})`
+    console.error("[inviteEmployee]", res.status, text)
+    throw new Error(String(message))
+  }
+  return body.profile
 }
 
 export async function fetchEmployee(employeeId: string, workspaceId: string) {

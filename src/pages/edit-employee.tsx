@@ -1,5 +1,5 @@
 import { useEffect } from "react"
-import { useNavigate, useParams } from "react-router-dom"
+import { useNavigate, useParams, useLocation } from "react-router-dom"
 import { Users, ChevronRight } from "lucide-react"
 
 import { Separator } from "@/components/ui/separator"
@@ -13,6 +13,9 @@ import type { Profile } from "@/contexts/auth-context"
 export function EditEmployeePage() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
+  const location = useLocation()
+  const cameFromList = (location.state as { from?: string } | null)?.from === "list"
+  const backPath = cameFromList ? "/employees" : `/employees/${id}`
   const { data: employee, isLoading: loading, isError } = useEmployee(id)
   const updateMutation = useUpdateEmployeeMutation()
 
@@ -53,7 +56,7 @@ export function EditEmployeePage() {
       title: "Changes saved successfully",
       description: "Employee details have been updated",
     })
-    navigate(`/employees/${id}`)
+    navigate(backPath)
   }
 
   const header = (
@@ -71,11 +74,15 @@ export function EditEmployeePage() {
         text="Employees"
         onClick={() => navigate("/employees")}
       />
-      <ChevronRight className="size-4 text-muted-foreground shrink-0" />
-      <BreadcrumbItem
-        text="Employee details"
-        onClick={() => navigate(`/employees/${id}`)}
-      />
+      {!cameFromList && (
+        <>
+          <ChevronRight className="size-4 text-muted-foreground shrink-0" />
+          <BreadcrumbItem
+            text="Employee details"
+            onClick={() => navigate(`/employees/${id}`)}
+          />
+        </>
+      )}
       <ChevronRight className="size-4 text-muted-foreground shrink-0" />
       <BreadcrumbItem
         text="Edit details"
@@ -125,7 +132,7 @@ export function EditEmployeePage() {
           subtitle="Update the personal information and role of your employee"
           submitLabel="Save changes"
           onSubmit={handleSubmit}
-          onCancel={() => navigate(`/employees/${id}`)}
+          onCancel={() => navigate(backPath)}
         />
       </div>
     </div>

@@ -50,6 +50,7 @@ const EditEmployeePage = lazy(() => import("@/pages/edit-employee").then(m => ({
 const TimeOffSetupPage = lazy(() => import("@/pages/time-off-setup").then(m => ({ default: m.TimeOffSetupPage })))
 const AddCategoryPage = lazy(() => import("@/pages/add-category").then(m => ({ default: m.AddCategoryPage })))
 const EditCategoryPage = lazy(() => import("@/pages/edit-category").then(m => ({ default: m.EditCategoryPage })))
+const ImportPreviewPage = lazy(() => import("@/pages/import-preview").then(m => ({ default: m.ImportPreviewPage })))
 const CalendarPage = lazy(() => import("@/pages/calendar").then(m => ({ default: m.CalendarPage })))
 const EmployeeRequestsPage = lazy(() => import("@/pages/employee-requests").then(m => ({ default: m.EmployeeRequestsPage })))
 
@@ -83,6 +84,7 @@ export default function App() {
               <Route path="requests" element={<RequestsRoute />} />
               <Route path="employees" element={<EmployeesPage />} />
               <Route path="employees/new" element={<AddEmployeePage />} />
+              <Route path="employees/import" element={<ImportPreviewPage />} />
               <Route path="employees/:id" element={<EmployeeDetailsPage />} />
               <Route path="employees/:id/edit" element={<EditEmployeePage />} />
               <Route path="calendar" element={<CalendarPage />} />

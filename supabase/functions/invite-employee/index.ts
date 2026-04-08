@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.98.0"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -98,33 +98,39 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Try to invite the user via email (creates auth user + sends invite)
-    const inviteOptions: Record<string, string> = {}
-    if (redirect_url) {
-      inviteOptions.redirectTo = redirect_url
-    }
-
+    // Create auth user directly (no invitation email — avoids rate limits)
     let newUserId: string
 
-    const { data: inviteData, error: inviteError } =
-      await adminClient.auth.admin.inviteUserByEmail(email, inviteOptions)
+    const { data: createData, error: createError } =
+      await adminClient.auth.admin.createUser({
+        email,
+        email_confirm: true,
+      })
 
-    if (inviteError) {
+    if (createError) {
       // Auth user may already exist (e.g., previously deleted from another workspace)
-      // Try to reuse their existing auth identity
-      const { data: existingUser } = await adminClient.auth.admin
-        .getUserByEmail(email)
+      // Look up existing auth user via GoTrue admin REST API
+      const lookupRes = await fetch(`${supabaseUrl}/auth/v1/admin/users?page=1&per_page=1000`, {
+        headers: {
+          Authorization: `Bearer ${supabaseServiceKey}`,
+          apikey: supabaseAnonKey,
+        },
+      })
+      const lookupData = await lookupRes.json()
+      const existingUser = lookupData.users?.find(
+        (u: { email?: string }) => u.email === email
+      )
 
-      if (existingUser?.user) {
-        newUserId = existingUser.user.id
+      if (existingUser) {
+        newUserId = existingUser.id
       } else {
         return new Response(
-          JSON.stringify({ error: inviteError.message }),
+          JSON.stringify({ error: createError.message }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         )
       }
     } else {
-      newUserId = inviteData.user.id
+      newUserId = createData.user.id
     }
 
     // Insert profile row
