@@ -76,8 +76,48 @@ Deno.serve(async (req) => {
       )
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+    if (!emailRegex.test(email)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid email format" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    const validRoles = ["user", "admin"]
+    if (role && !validRoles.includes(role)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid role. Must be 'user' or 'admin'" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    if (hire_date && !/^\d{4}-\d{2}-\d{2}$/.test(hire_date)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid hire_date format. Use YYYY-MM-DD" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
     // Create admin client with service role key
     const adminClient = createClient(supabaseUrl, supabaseServiceKey)
+
+    // Validate department belongs to caller's workspace
+    if (department_id) {
+      const { data: dept } = await adminClient
+        .from("departments")
+        .select("id")
+        .eq("id", department_id)
+        .eq("workspace_id", callerProfile.workspace_id)
+        .maybeSingle()
+
+      if (!dept) {
+        return new Response(
+          JSON.stringify({ error: "Department not found in this workspace" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        )
+      }
+    }
 
     // Check if email is already active in any workspace (single-workspace constraint)
     const { data: existingProfile } = await adminClient
@@ -88,12 +128,8 @@ Deno.serve(async (req) => {
       .maybeSingle()
 
     if (existingProfile) {
-      const message =
-        existingProfile.workspace_id === callerProfile.workspace_id
-          ? "This email is already part of this workspace"
-          : "This email is already part of another workspace"
       return new Response(
-        JSON.stringify({ error: message }),
+        JSON.stringify({ error: "This email is already in use" }),
         { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
@@ -109,26 +145,26 @@ Deno.serve(async (req) => {
 
     if (createError) {
       // Auth user may already exist (e.g., previously deleted from another workspace)
-      // Look up existing auth user via GoTrue admin REST API
-      const lookupRes = await fetch(`${supabaseUrl}/auth/v1/admin/users?page=1&per_page=1000`, {
-        headers: {
-          Authorization: `Bearer ${supabaseServiceKey}`,
-          apikey: supabaseAnonKey,
-        },
-      })
-      const lookupData = await lookupRes.json()
-      const existingUser = lookupData.users?.find(
+      // Look up by email using the admin API
+      const { data: listData, error: listError } =
+        await adminClient.auth.admin.listUsers({
+          page: 1,
+          perPage: 1,
+          filter: email,
+        })
+
+      const existingUser = listData?.users?.find(
         (u: { email?: string }) => u.email === email
       )
 
-      if (existingUser) {
-        newUserId = existingUser.id
-      } else {
+      if (listError || !existingUser) {
         return new Response(
           JSON.stringify({ error: createError.message }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         )
       }
+
+      newUserId = existingUser.id
     } else {
       newUserId = createData.user.id
     }

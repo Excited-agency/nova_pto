@@ -72,6 +72,7 @@ interface ProcessRowsOptions {
   rawRows: Record<string, string>[]
   mapping: HeaderMapping
   departmentNameToId: Map<string, string>
+  existingEmails?: Set<string>
 }
 
 interface ProcessRowsResult {
@@ -86,6 +87,7 @@ export function processRows({
   rawRows,
   mapping,
   departmentNameToId,
+  existingEmails,
 }: ProcessRowsOptions): ProcessRowsResult {
   const rows: CsvEmployeeRow[] = []
   const validations = new Map<number, RowValidation[]>()
@@ -147,6 +149,14 @@ export function processRows({
       })
     } else {
       const emailLower = email.toLowerCase()
+      if (existingEmails?.has(emailLower)) {
+        rowValidations.push({
+          rowIndex,
+          field: "email",
+          message: "Already exists in workspace",
+          severity: "error",
+        })
+      }
       const existingRow = seenEmails.get(emailLower)
       if (existingRow !== undefined) {
         rowValidations.push({
@@ -194,9 +204,20 @@ export function processRows({
         rowValidations.push({
           rowIndex,
           field: "hire_date",
-          message: "Could not parse date format",
+          message: "Could not parse date format. Use YYYY-MM-DD for best results",
           severity: "warning",
         })
+      } else {
+        // Warn about ambiguous dates (e.g. 03/04/2026 could be March 4 or April 3)
+        const slashMatch = hireDateRaw.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+        if (slashMatch && Number(slashMatch[1]) <= 12 && Number(slashMatch[2]) <= 12 && slashMatch[1] !== slashMatch[2]) {
+          rowValidations.push({
+            rowIndex,
+            field: "hire_date",
+            message: `Interpreted as ${hireDate} (MM/DD/YYYY). Use YYYY-MM-DD to avoid ambiguity`,
+            severity: "warning",
+          })
+        }
       }
     }
 

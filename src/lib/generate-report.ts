@@ -10,7 +10,9 @@ const legacyTypeLabels: Record<string, string> = {
   other: "Other",
 }
 
-function calculateDays(startDate: string, endDate: string): number {
+// Simple calendar-day fallback for legacy records where total_days was not stored.
+// Matches the backfill in 20260320000000_add_half_day_periods migration.
+function calendarDaysFallback(startDate: string, endDate: string): number {
   const start = new Date(startDate)
   const end = new Date(endDate)
   return Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
@@ -80,7 +82,7 @@ export async function generateReport(workspaceId: string): Promise<void> {
       typeName,
       req.start_date,
       req.end_date,
-      req.total_days ?? calculateDays(req.start_date, req.end_date),
+      req.total_days ?? calendarDaysFallback(req.start_date, req.end_date),
       req.status.charAt(0).toUpperCase() + req.status.slice(1),
       req.comment ?? "",
     ]

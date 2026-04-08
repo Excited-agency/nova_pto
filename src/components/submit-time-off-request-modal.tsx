@@ -205,7 +205,7 @@ export function SubmitTimeOffRequestModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => { if (!submitMutation.isPending) onOpenChange(v) }}>
       <DialogContent className="max-w-[480px] gap-5">
         <DialogHeader>
           <DialogTitle>Request time off</DialogTitle>
@@ -323,7 +323,7 @@ export function SubmitTimeOffRequestModal({
         </div>
 
         <DialogFooter>
-          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={submitMutation.isPending}>
             Cancel
           </Button>
           <Button

@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { useAuth } from "@/hooks/use-auth"
 import { useDepartments } from "@/hooks/use-departments"
 import { inviteEmployee } from "@/lib/employee-service"
+import { supabase } from "@/lib/supabase"
 import { mapHeaders } from "@/lib/csv-header-mapping"
 import { processRows, rowHasErrors } from "@/lib/csv-validation"
 import { employeeKeys, departmentKeys, activeEmployeeKeys } from "@/lib/query-keys"
@@ -90,7 +91,7 @@ export function useCsvImport() {
       }
 
       const reader = new FileReader()
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         const text = e.target?.result as string
         if (!text?.trim()) {
           setFileError("The file appears to be empty")
@@ -128,10 +129,24 @@ export function useCsvImport() {
           return
         }
 
+        // Fetch existing workspace emails to detect duplicates
+        let existingEmails: Set<string> | undefined
+        if (workspace) {
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("email")
+            .eq("workspace_id", workspace.id)
+            .neq("status", "deleted")
+          if (profiles) {
+            existingEmails = new Set(profiles.map((p) => p.email.toLowerCase()))
+          }
+        }
+
         const { rows, validations: rowValidations } = processRows({
           rawRows: result.data,
           mapping,
           departmentNameToId,
+          existingEmails,
         })
 
         if (rows.length === 0) {

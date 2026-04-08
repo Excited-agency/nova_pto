@@ -1,0 +1,21 @@
+- generic [ref=e2]:
+  - generic [ref=e122]:
+    - generic [ref=e125]:
+      - generic [ref=e126]:
+        - img "Nova logo" [ref=e127]
+        - heading "Log in to Nova" [level=1] [ref=e129]
+      - generic [ref=e130]:
+        - paragraph [ref=e131]:
+          - text: We've sent a magic login link to
+          - generic [ref=e132]: alex.r@gmail.com.
+          - text: Open the email and click the link to access your account.
+        - paragraph [ref=e133]:
+          - text: Didn't get it?
+          - button "Resend" [ref=e134] [cursor=pointer]
+        - button "Go back" [ref=e135] [cursor=pointer]:
+          - generic [ref=e136]: Go back
+    - img "Nova PTO app preview" [ref=e138]
+  - generic [ref=e5]:
+    - img [ref=e7]
+    - button "Open Tanstack query devtools" [ref=e55] [cursor=pointer]:
+      - img [ref=e56]

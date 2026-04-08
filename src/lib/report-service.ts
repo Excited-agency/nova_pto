@@ -26,12 +26,12 @@ export async function fetchReportEmployees(
 
   if (error) throw error
 
-  return (data ?? []).map((row: any) => ({
+  return (data ?? []).map((row) => ({
     id: row.id,
     first_name: row.first_name,
     last_name: row.last_name,
     email: row.email,
-    department_name: row.departments?.name ?? null,
+    department_name: (row.departments as { name: string } | null)?.name ?? null,
   }))
 }
 

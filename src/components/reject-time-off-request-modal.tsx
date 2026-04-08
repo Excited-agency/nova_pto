@@ -54,6 +54,7 @@ export function RejectTimeOffRequestModal({
   const days = request.total_days
 
   function handleClose(open: boolean) {
+    if (rejectMutation.isPending) return
     if (!open) setReason("")
     onOpenChange(open)
   }
@@ -154,7 +155,7 @@ export function RejectTimeOffRequestModal({
         </div>
 
         <DialogFooter>
-          <Button variant="secondary" onClick={() => handleClose(false)}>
+          <Button variant="secondary" onClick={() => handleClose(false)} disabled={rejectMutation.isPending}>
             Cancel
           </Button>
           <Button

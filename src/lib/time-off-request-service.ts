@@ -61,6 +61,23 @@ export async function updateEmployeeBalance(
   if (error) throw error
 }
 
+export async function bulkUpdateEmployeeBalances(
+  employeeId: string,
+  workspaceId: string,
+  updates: { categoryId: string; remainingDays: number }[]
+) {
+  const { error } = await supabase.rpc("bulk_update_employee_balances", {
+    p_employee_id: employeeId,
+    p_workspace_id: workspaceId,
+    p_updates: updates.map((u) => ({
+      category_id: u.categoryId,
+      remaining_days: u.remainingDays,
+    })),
+  })
+
+  if (error) throw error
+}
+
 export interface CreateTimeOffRecordParams {
   workspace_id: string
   employee_id: string
@@ -113,13 +130,16 @@ export async function rejectTimeOffRequest(requestId: string, rejectionReason: s
 
   if (error) throw error
 
-  // Fire-and-forget: Slack notification
+  // Fire-and-forget: Slack notification (failures are non-fatal, logged for observability)
   supabase.functions
     .invoke("slack-notify", {
       body: { request_id: requestId, action: "rejected" },
     })
+    .then(({ error: fnError }) => {
+      if (fnError) console.error("[slack-notify] reject notification failed:", { requestId, error: fnError.message })
+    })
     .catch((err) => {
-      console.warn("[rejectTimeOffRequest] Slack notification failed (non-fatal):", err)
+      console.error("[slack-notify] reject notification failed:", { requestId, error: err })
     })
 
   return data
@@ -132,13 +152,16 @@ export async function approveTimeOffRequest(requestId: string) {
 
   if (error) throw error
 
-  // Fire-and-forget: Slack notification
+  // Fire-and-forget: Slack notification (failures are non-fatal, logged for observability)
   supabase.functions
     .invoke("slack-notify", {
       body: { request_id: requestId, action: "approved" },
     })
+    .then(({ error: fnError }) => {
+      if (fnError) console.error("[slack-notify] approve notification failed:", { requestId, error: fnError.message })
+    })
     .catch((err) => {
-      console.warn("[approveTimeOffRequest] Slack notification failed (non-fatal):", err)
+      console.error("[slack-notify] approve notification failed:", { requestId, error: err })
     })
 
   return data

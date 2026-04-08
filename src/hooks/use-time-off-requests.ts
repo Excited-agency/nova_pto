@@ -5,6 +5,7 @@ import {
   fetchEmployeeBalance,
   fetchEmployeeBalances,
   updateEmployeeBalance,
+  bulkUpdateEmployeeBalances,
   createTimeOffRecord,
   updateTimeOffRequestStatus,
   approveTimeOffRequest,
@@ -188,15 +189,10 @@ export function useUpdateEmployeeBalancesMutation() {
       employeeId: string
       updates: { categoryId: string; remainingDays: number }[]
     }) => {
-      await Promise.all(
-        params.updates.map((u) =>
-          updateEmployeeBalance(
-            params.employeeId,
-            u.categoryId,
-            u.remainingDays,
-            workspace!.id
-          )
-        )
+      await bulkUpdateEmployeeBalances(
+        params.employeeId,
+        workspace!.id,
+        params.updates
       )
     },
     onSuccess: (_data, variables) => {

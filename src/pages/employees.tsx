@@ -55,20 +55,12 @@ import { useDepartments } from "@/hooks/use-departments"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { cn, getInitials, getDisplayName } from "@/lib/utils"
 import { addToast } from "@/lib/toast"
+import { formatDate } from "@/lib/date-utils"
 import { employeeKeys, activeEmployeeKeys } from "@/lib/query-keys"
 import { CsvImportModal } from "@/components/csv-import-modal"
 import type { EmployeeStatus } from "@/types/employee"
 
 type TabValue = EmployeeStatus
-
-function formatDate(dateStr?: string) {
-  if (!dateStr) return "—"
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date(dateStr))
-}
 
 interface EmployeeRowProps {
   emp: Profile

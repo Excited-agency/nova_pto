@@ -1,0 +1,24 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - img "Nova logo" [ref=e8]
+        - generic [ref=e9]:
+          - heading "Log in to Nova" [level=1] [ref=e10]
+          - paragraph [ref=e11]: Simple leave management for teams.
+      - generic [ref=e12]:
+        - textbox "example@mail.com" [ref=e13]
+        - button "Continue with email" [ref=e14] [cursor=pointer]:
+          - generic [ref=e15]: Continue with email
+      - paragraph [ref=e16]:
+        - text: By continuing you agree to the Nova
+        - link "Privacy Policy" [ref=e17] [cursor=pointer]:
+          - /url: "#"
+        - text: and
+        - link "Terms of Use" [ref=e18] [cursor=pointer]:
+          - /url: "#"
+    - img "Nova PTO app preview" [ref=e20]
+  - generic [ref=e21]:
+    - img [ref=e23]
+    - button "Open Tanstack query devtools" [ref=e71] [cursor=pointer]:
+      - img [ref=e72]

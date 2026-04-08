@@ -71,7 +71,8 @@ export function formatDays(days: number): string {
   return `${formatted} ${days === 1 ? "day" : "days"}`
 }
 
-export function formatDate(dateStr: string): string {
+export function formatDate(dateStr?: string | null): string {
+  if (!dateStr) return "—"
   const [y, m, d] = dateStr.split("-").map(Number)
   return new Intl.DateTimeFormat("en-US", {
     month: "short",

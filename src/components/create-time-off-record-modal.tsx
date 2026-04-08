@@ -232,7 +232,7 @@ export function CreateTimeOffRecordModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => { if (!createMutation.isPending) onOpenChange(v) }}>
       <DialogContent className="max-w-[480px] gap-5">
         <DialogHeader>
           <DialogTitle>Create time-off record</DialogTitle>
@@ -365,7 +365,7 @@ export function CreateTimeOffRecordModal({
         </div>
 
         <DialogFooter>
-          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={createMutation.isPending}>
             Cancel
           </Button>
           <Button

@@ -38,17 +38,9 @@ import { useEmployeeBalances, useUpdateEmployeeBalancesMutation } from "@/hooks/
 import { useTimeOffCategories } from "@/hooks/use-time-off-categories"
 import { useDepartments } from "@/hooks/use-departments"
 import { addToast } from "@/lib/toast"
+import { formatDate } from "@/lib/date-utils"
 import { getDisplayName, getInitials } from "@/lib/utils"
 import type { Profile } from "@/contexts/auth-context"
-
-function formatDate(dateStr?: string) {
-  if (!dateStr) return "—"
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date(dateStr))
-}
 
 export function EmployeeDetailsPage() {
   const navigate = useNavigate()

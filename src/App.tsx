@@ -6,6 +6,7 @@ import { SpeedInsights } from "@vercel/speed-insights/react"
 import { AuthProvider } from "@/contexts/auth-context"
 import { useAuth } from "@/hooks/use-auth"
 import { ProtectedRoute } from "@/components/protected-route"
+import { AdminRoute } from "@/components/admin-route"
 import { DashboardLayout } from "@/components/layout/DashboardLayout"
 import { supabase } from "@/lib/supabase"
 import { Toaster } from "@/components/ui/toaster"
@@ -16,7 +17,11 @@ const queryClient = new QueryClient({
       staleTime: 5 * 60_000,
       gcTime: 10 * 60_000,
       refetchOnWindowFocus: false,
-      retry: 3,
+      retry: (failureCount, error) => {
+        const status = (error as { status?: number })?.status
+        if (status === 401 || status === 403 || status === 404) return false
+        return failureCount < 3
+      },
       retryDelay: (attemptIndex) => Math.min(2000 * 2 ** attemptIndex, 15_000),
     },
   },
@@ -82,16 +87,16 @@ export default function App() {
             >
               <Route index element={<Navigate to="requests" replace />} />
               <Route path="requests" element={<RequestsRoute />} />
-              <Route path="employees" element={<EmployeesPage />} />
-              <Route path="employees/new" element={<AddEmployeePage />} />
-              <Route path="employees/import" element={<ImportPreviewPage />} />
-              <Route path="employees/:id" element={<EmployeeDetailsPage />} />
-              <Route path="employees/:id/edit" element={<EditEmployeePage />} />
+              <Route path="employees" element={<AdminRoute><EmployeesPage /></AdminRoute>} />
+              <Route path="employees/new" element={<AdminRoute><AddEmployeePage /></AdminRoute>} />
+              <Route path="employees/import" element={<AdminRoute><ImportPreviewPage /></AdminRoute>} />
+              <Route path="employees/:id" element={<AdminRoute><EmployeeDetailsPage /></AdminRoute>} />
+              <Route path="employees/:id/edit" element={<AdminRoute><EditEmployeePage /></AdminRoute>} />
               <Route path="calendar" element={<CalendarPage />} />
-              <Route path="time-off-setup" element={<TimeOffSetupPage />} />
-              <Route path="time-off-setup/new" element={<AddCategoryPage />} />
-              <Route path="time-off-setup/:id/edit" element={<EditCategoryPage />} />
-              <Route path="settings" element={<SettingsPage />} />
+              <Route path="time-off-setup" element={<AdminRoute><TimeOffSetupPage /></AdminRoute>} />
+              <Route path="time-off-setup/new" element={<AdminRoute><AddCategoryPage /></AdminRoute>} />
+              <Route path="time-off-setup/:id/edit" element={<AdminRoute><EditCategoryPage /></AdminRoute>} />
+              <Route path="settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
             </Route>
             <Route path="*" element={<Navigate to="/requests" replace />} />
           </Routes>

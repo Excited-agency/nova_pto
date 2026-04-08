@@ -51,7 +51,8 @@
       "Bash(./node_modules/.bin/tsc --noEmit)",
       "Bash(xargs cat:*)",
       "Bash(find /Users/yaroslavtokariev/Desktop/Excited/Figma-To-Code-Projects/Nova_pto/supabase/functions/slack-* -type f)",
-      "Bash(find /Users/yaroslavtokariev/Desktop/Excited/Figma-To-Code-Projects/Nova_pto/src/components -type f -name \"*.tsx\" -exec wc -l {})"
+      "Bash(find /Users/yaroslavtokariev/Desktop/Excited/Figma-To-Code-Projects/Nova_pto/src/components -type f -name \"*.tsx\" -exec wc -l {})",
+      "mcp__plugin_playwright_playwright__browser_take_screenshot"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -75,7 +75,7 @@ export function ApproveTimeOffRequestModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => { if (!approveMutation.isPending) onOpenChange(v) }}>
       <DialogContent className="max-w-[480px] gap-5">
         <DialogHeader className="gap-1.5">
           <DialogTitle className="leading-none tracking-[-0.45px]">Approve time-off request</DialogTitle>
@@ -134,7 +134,7 @@ export function ApproveTimeOffRequestModal({
         </div>
 
         <DialogFooter>
-          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={approveMutation.isPending}>
             Cancel
           </Button>
           <Button
