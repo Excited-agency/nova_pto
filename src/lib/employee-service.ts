@@ -106,7 +106,7 @@ export async function inviteEmployee(data: InviteEmployeeData) {
 export async function fetchEmployee(employeeId: string, workspaceId: string) {
   const { data, error } = await supabase
     .from("profiles")
-    .select("*")
+    .select("id, first_name, last_name, email, avatar_url, status, department_id, role, location, hire_date, workspace_id")
     .eq("id", employeeId)
     .eq("workspace_id", workspaceId)
     .single()

@@ -34,7 +34,12 @@ export type UpdateCategoryData = Omit<CreateCategoryData, "workspace_id" | "sort
 export async function fetchCategory(categoryId: string, workspaceId: string): Promise<TimeOffCategory> {
   const { data, error } = await supabase
     .from("time_off_categories")
-    .select("*")
+    .select(
+      "id, workspace_id, name, emoji, colour, is_active, leave_type, accrual_method, " +
+      "amount_value, granting_frequency, accrual_day, anniversary_years, new_hire_rule, " +
+      "waiting_period_value, waiting_period_unit, carryover_limit_enabled, carryover_max_days, " +
+      "carryover_expiration_value, carryover_expiration_unit, sort_order, created_at, updated_at"
+    )
     .eq("id", categoryId)
     .eq("workspace_id", workspaceId)
     .single()
@@ -76,7 +81,12 @@ export async function fetchTimeOffCategories(
 ): Promise<TimeOffCategory[]> {
   const { data, error } = await supabase
     .from("time_off_categories")
-    .select("*")
+    .select(
+      "id, workspace_id, name, emoji, colour, is_active, leave_type, accrual_method, " +
+      "amount_value, granting_frequency, accrual_day, anniversary_years, new_hire_rule, " +
+      "waiting_period_value, waiting_period_unit, carryover_limit_enabled, carryover_max_days, " +
+      "carryover_expiration_value, carryover_expiration_unit, sort_order, created_at, updated_at"
+    )
     .eq("workspace_id", workspaceId)
     .order("sort_order", { ascending: true })
 

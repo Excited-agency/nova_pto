@@ -5,7 +5,11 @@ import type { EmployeeBalance } from "@/types/employee-balance"
 export async function fetchTimeOffRequests(workspaceId: string) {
   const { data, error } = await supabase
     .from("time_off_requests_safe")
-    .select("*")
+    .select(
+      "id, profile_id, workspace_id, category_id, employee_name, employee_email, " +
+      "employee_avatar_url, start_date, end_date, start_period, end_period, " +
+      "total_days, request_type, status, comment, rejection_reason, created_at, updated_at"
+    )
     .eq("workspace_id", workspaceId)
     .neq("status", "withdrawn")
     .order("created_at", { ascending: false })
@@ -192,7 +196,11 @@ export async function withdrawTimeOffRequest(requestId: string, workspaceId: str
 export async function fetchMyTimeOffRequests(profileId: string, workspaceId: string) {
   const { data, error } = await supabase
     .from("time_off_requests_safe")
-    .select("*")
+    .select(
+      "id, profile_id, workspace_id, category_id, employee_name, employee_email, " +
+      "employee_avatar_url, start_date, end_date, start_period, end_period, " +
+      "total_days, request_type, status, comment, rejection_reason, created_at, updated_at"
+    )
     .eq("profile_id", profileId)
     .eq("workspace_id", workspaceId)
     .order("created_at", { ascending: false })

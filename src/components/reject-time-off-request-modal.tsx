@@ -16,6 +16,7 @@ import { getInitials } from "@/lib/utils"
 import { addToast } from "@/lib/toast"
 import { formatDate, formatDays, formatPeriodLabel } from "@/lib/date-utils"
 import { getCategoryDisplay } from "@/lib/request-display"
+import { InfoRow } from "@/components/request-info-row"
 import type { TimeOffRequest } from "@/types/time-off-request"
 
 interface RejectTimeOffRequestModalProps {
@@ -23,19 +24,6 @@ interface RejectTimeOffRequestModalProps {
   onOpenChange: (open: boolean) => void
   request: TimeOffRequest | null
   categoryMap: Map<string, { name: string; emoji?: string | null }>
-}
-
-function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-start gap-2">
-      <span className="flex-1 min-w-0 text-sm font-medium leading-5 tracking-[-0.28px] text-muted-foreground truncate">
-        {label}
-      </span>
-      <div className="flex items-center gap-1.5 text-sm font-medium leading-5 tracking-[-0.28px] text-foreground shrink-0">
-        {children}
-      </div>
-    </div>
-  )
 }
 
 export function RejectTimeOffRequestModal({

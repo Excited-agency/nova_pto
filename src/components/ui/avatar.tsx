@@ -92,6 +92,7 @@ function Avatar({
           src={src}
           alt={alt ?? ""}
           className="size-full object-cover"
+          loading="lazy"
           onLoadingStatusChange={(status) => {
             if (status === "error") setImgError(true)
           }}

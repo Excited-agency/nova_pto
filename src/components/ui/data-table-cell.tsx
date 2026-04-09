@@ -237,6 +237,7 @@ function DataTableCell({
             <img
               src={imageSrc}
               alt={imageAlt ?? ""}
+              loading="lazy"
               className="size-10 shrink-0 rounded-[calc(var(--radius)-4px)] object-cover"
             />
             <p className="flex-1 min-w-0 truncate text-sm font-normal leading-5 tracking-tight text-foreground">

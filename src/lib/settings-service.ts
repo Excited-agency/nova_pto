@@ -1,12 +1,6 @@
 import { supabase } from "@/lib/supabase"
-import { IMAGE_ALLOWED_TYPES, IMAGE_MAX_SIZE } from "@/lib/constants"
 import { validateImageFile } from "@/lib/utils"
 import type { Department } from "@/types/department"
-
-/** @deprecated Use IMAGE_ALLOWED_TYPES from constants.ts */
-export const ALLOWED_TYPES = IMAGE_ALLOWED_TYPES
-/** @deprecated Use IMAGE_MAX_SIZE from constants.ts */
-export const MAX_SIZE = IMAGE_MAX_SIZE
 
 export async function updateWorkspace(
   workspaceId: string,
@@ -33,7 +27,7 @@ export async function updateProfile(
 export async function fetchDepartments(workspaceId: string): Promise<Department[]> {
   const { data, error } = await supabase
     .from("departments")
-    .select("*")
+    .select("id, name, workspace_id, created_at")
     .eq("workspace_id", workspaceId)
     .order("created_at", { ascending: true })
   if (error) throw error

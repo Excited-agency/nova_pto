@@ -24,6 +24,17 @@ interface ImportPreviewState {
   mappedColumnCount: number
 }
 
+const INVITE_TIMEOUT_MS = 10_000
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Request timed out")), ms)
+    ),
+  ])
+}
+
 export function ImportPreviewPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -35,6 +46,9 @@ export function ImportPreviewPage() {
   const rows = state?.rows ?? []
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Intentional: router state is stable for the lifetime of this page visit;
+  // empty deps ensures the Map is built once so the selectedIndices initializer
+  // references a stable object.
   const validations = useMemo(() => new Map<number, RowValidation[]>(state?.validationEntries ?? []), [])
 
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(() => {
@@ -98,15 +112,18 @@ export function ImportPreviewPage() {
     for (const row of selectedRows) {
       if (cancelledRef.current) break
       try {
-        await inviteEmployee({
-          email: row.email,
-          first_name: row.first_name || undefined,
-          last_name: row.last_name || undefined,
-          role: row.role || "user",
-          department_id: row.department_id || null,
-          location: row.location || undefined,
-          hire_date: row.hire_date || undefined,
-        })
+        await withTimeout(
+          inviteEmployee({
+            email: row.email,
+            first_name: row.first_name || undefined,
+            last_name: row.last_name || undefined,
+            role: row.role || "user",
+            department_id: row.department_id || null,
+            location: row.location || undefined,
+            hire_date: row.hire_date || undefined,
+          }),
+          INVITE_TIMEOUT_MS
+        )
         results.push({ index: row.index, email: row.email, status: "success" })
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error"

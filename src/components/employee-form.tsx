@@ -108,6 +108,8 @@ export function EmployeeForm({
       avatarUrl: initialData.avatarUrl ?? null,
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Intentional: snapshot initialData once on mount — re-running when props change
+    // would reset the dirty-check baseline mid-edit.
   }, [])
 
   const isDirty = useMemo(() => {

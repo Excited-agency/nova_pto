@@ -27,14 +27,14 @@ VITE_SUPABASE_ANON_KEY=...
 
 **App:** Nova PTO — a leave management SaaS. Auth uses Supabase magic link (OTP via email, no passwords).
 
-**Key dependencies beyond core stack:** `react-hook-form` + `zod` (forms/validation), `@dnd-kit/*` (drag-and-drop), `xlsx` (Excel export), `react-highlight-words` (search result highlighting), `lucide-react` (icons), `radix-ui` (unified Radix package).
+**Key dependencies beyond core stack:** `react-hook-form` + `zod` (forms/validation), `@dnd-kit/*` (drag-and-drop), `xlsx` (Excel export), `papaparse` (CSV parsing), `react-highlight-words` (search result highlighting), `lucide-react` (icons), `radix-ui` (unified Radix package).
 
 ### Key flows
 
 - `src/App.tsx` — router root. All routes wrapped in `AuthProvider`. `/` layout route is behind `ProtectedRoute`. App pages use nested routes via `<Outlet />` in `DashboardLayout`.
 - **Auth sequence**: `/login` (enter email) → Supabase sends OTP → `/check-email` (enter 6-digit code) → verify → redirect to `/requests`.
 - **Role-based routing**: The `requests` route renders `RequestsPage` for admins and `EmployeeRequestsPage` for non-admins — both lazy-loaded, switch decided inside the route element.
-- `src/contexts/auth-context.tsx` — central auth state. Exposes `user`, `session`, `workspace`, `profile`, `loading`, `signOut`, `refreshWorkspace`, `refreshProfile`. On first sign-in (`SIGNED_IN` event), runs `runFounderFlow` to auto-provision a workspace and profile for new users.
+- `src/contexts/auth-context.tsx` — central auth state. Exposes `user`, `session`, `workspace`, `profile`, `loading`, `authError`, `retryAuth`, `signOut`, `refreshWorkspace`, `refreshProfile`. On first sign-in (`SIGNED_IN` event), runs `runFounderFlow` to auto-provision a workspace and profile for new users.
 - `src/contexts/navigation-guard-context.tsx` — provides `registerGuard`/`unregisterGuard` for pages with unsaved changes (e.g. Settings) to block navigation until confirmed.
 - `src/lib/founder-flow.ts` — first-time user setup: creates a `workspaces` row and a `profiles` row (role: `admin`) in Supabase. Idempotent — skips if profile already exists.
 - `src/lib/supabase.ts` — single shared Supabase client.
@@ -66,7 +66,9 @@ Defined in `src/App.tsx`. All page components are lazy-loaded via `React.lazy` +
 - `/requests` — `RequestsPage` (admin) or `EmployeeRequestsPage` (non-admin), role-resolved at render
 - `/employees` — `EmployeesPage` (tabs/search/table, live Supabase data, status filtering, action dropdowns)
 - `/employees/new` — `AddEmployeePage` (uses shared `employee-form.tsx`; calls `inviteEmployee` from employee-service)
+- `/employees/:id` — `EmployeeDetailsPage` (individual employee details view)
 - `/employees/:id/edit` — `EditEmployeePage` (uses shared `employee-form.tsx`; loads via `fetchEmployee`, saves via `updateEmployee`)
+- `/employees/import` — `ImportPreviewPage` (CSV bulk employee import with header mapping and validation)
 - `/settings` — `SettingsPage` (fully wired: workspace name/logo, profile name/avatar, departments CRUD, dirty-state guard)
 - `/calendar` — stub placeholder
 - `/time-off-setup` — `TimeOffSetupPage` (categories CRUD with drag-and-drop reordering via `@dnd-kit`)
@@ -82,6 +84,7 @@ Defined in `src/App.tsx`. All page components are lazy-loaded via `React.lazy` +
 - `src/types/time-off-category.ts` — `TimeOffCategory`, `LeaveType`, `AccrualMethod`, `GrantingFrequency`, `NewHireRule`, `PeriodUnit`
 - `src/types/holiday.ts` — `Holiday`, `NagerHoliday` (external API shape), `CreateHolidayData`
 - `src/types/employee-balance.ts` — `EmployeeBalance` interface
+- `src/types/csv-import.ts` — `SchemaField`, `HeaderMapping`, `CsvEmployeeRow`, `RowValidation`, `ImportRowResult`, `ImportStep`
 
 ### Services
 
@@ -99,6 +102,13 @@ Defined in `src/App.tsx`. All page components are lazy-loaded via `React.lazy` +
 - `src/lib/date-utils.ts` / `src/lib/calendar-utils.ts` — date parsing, formatting, and calendar calculations
 - `src/lib/category-colors.ts` — color palette for time-off categories
 - `src/lib/category-form-schema.ts` — Zod validation schema for category forms
+- `src/lib/csv-header-mapping.ts` — `mapHeaders()` (3-phase CSV header auto-detection), `splitFullName()`
+- `src/lib/csv-validation.ts` — `processRows()`, `rowHasErrors()` (CSV row validation with error/warning detection)
+- `src/lib/auth-channel.ts` — `broadcastAuthComplete()`, `onAuthComplete()` (BroadcastChannel for cross-tab auth sync)
+- `src/lib/request-display.ts` — `legacyTypeLabels`, `getCategoryDisplay()` (legacy request type display logic)
+- `src/lib/site-url.ts` — `getSiteUrl()` (returns `VITE_SITE_URL` for auth redirects, falls back to `window.location.origin`)
+- `src/lib/default-categories.ts` — `seedDefaultCategories()` (seeds 5 default time-off categories on workspace creation)
+- `src/lib/time-off-category-utils.ts` — `getAllowancePolicy()` (displays accrual policy text based on category settings)
 
 ### Hooks
 
@@ -112,16 +122,21 @@ All in `src/hooks/`. Each wraps one domain's service calls in TanStack Query:
 - `use-holidays.ts` — holiday management queries/mutations
 - `use-image-upload.ts` — avatar/logo file selection: exposes `file`, `preview`, `error`, `inputRef`, `handleSelect`, `handleRemove`. Validates PNG/JPEG ≤ 2 MB.
 - `use-debounced-value.ts` — debounced value for search inputs
+- `use-csv-import.ts` — manages multi-step CSV employee import workflow (upload → preview → import → results), including file parsing, header mapping, validation, and progress tracking
 
 ### Supabase Edge Functions
 
 - `supabase/functions/invite-employee/` — Deno function: verifies caller JWT + admin role, creates Supabase auth user via admin API, inserts `profiles` row.
+- `supabase/functions/delete-workspace/` — workspace deletion
+- `supabase/functions/slack-oauth/` — Slack OAuth flow
+- `supabase/functions/slack-events/` — Slack event handling
+- `supabase/functions/slack-notify/` — Slack notifications
 
 Deploy with `supabase functions deploy <function-name>`.
 
 ### Layout structure
 
-Non-dashboard components: `src/components/auth-layout.tsx` (wrapper for login/OTP pages), `src/components/protected-route.tsx` (redirects unauthenticated users), `src/components/error-boundary.tsx` (error fallback wrapping DashboardLayout), `src/components/nova-logo.tsx`. Dashboard-specific layout: `src/components/layout/DashboardLayout.tsx` and `src/components/layout/Sidebar.tsx`.
+Non-dashboard components: `src/components/auth-layout.tsx` (wrapper for login/OTP pages), `src/components/protected-route.tsx` (redirects unauthenticated users), `src/components/admin-route.tsx` (wraps admin-only routes, redirects non-admins to `/access-restricted`), `src/components/error-boundary.tsx` (error fallback wrapping DashboardLayout), `src/components/nova-logo.tsx`. Dashboard-specific layout: `src/components/layout/DashboardLayout.tsx` and `src/components/layout/Sidebar.tsx`.
 
 `DashboardLayout`: outer `div` with `bg-sidebar-accent p-2 flex h-screen overflow-hidden`, containing a fixed-width `Sidebar` (260px) and a `main` that is `flex-1 overflow-y-auto rounded-xl bg-background`. The sidebar background is visually inset into the app chrome.
 

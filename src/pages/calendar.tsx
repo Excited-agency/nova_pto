@@ -122,13 +122,6 @@ export function CalendarPage() {
     [categories]
   )
 
-  // Also build a simpler categoryMap for the details modal (matches requests.tsx)
-  const detailsCategoryMap = useMemo(() => {
-    const map = new Map<string, { name: string; emoji?: string | null }>()
-    for (const c of categories) map.set(c.id, { name: c.name, emoji: c.emoji })
-    return map
-  }, [categories])
-
   // Navigation handlers — wrapped in startTransition to keep UI responsive
   const handlePrevMonth = useCallback(() => {
     startTransition(() => {
@@ -161,6 +154,14 @@ export function CalendarPage() {
     if (event.type === "request" && event.originalRequest) {
       setDetailsModalRequest(event.originalRequest)
     }
+  }, [])
+
+  const handleUserChange = useCallback((v: string) => {
+    startTransition(() => setSelectedUser(v))
+  }, [])
+
+  const handleCategoryChange = useCallback((v: string) => {
+    startTransition(() => setSelectedCategory(v))
   }, [])
 
   const handleDownloadReport = useCallback(async () => {
@@ -215,9 +216,9 @@ export function CalendarPage() {
           onNextMonth={handleNextMonth}
           onToday={handleToday}
           selectedUser={selectedUser}
-          onUserChange={(v) => startTransition(() => setSelectedUser(v))}
+          onUserChange={handleUserChange}
           selectedCategory={selectedCategory}
-          onCategoryChange={(v) => startTransition(() => setSelectedCategory(v))}
+          onCategoryChange={handleCategoryChange}
           users={userOptions}
           categories={categoryOptions}
         />
@@ -248,7 +249,7 @@ export function CalendarPage() {
         open={detailsModalRequest !== null}
         onOpenChange={(open) => { if (!open) setDetailsModalRequest(null) }}
         request={detailsModalRequest}
-        categoryMap={detailsCategoryMap}
+        categoryMap={categoryMap}
         canSeeComment={isAdmin || detailsModalRequest?.profile_id === profile?.id}
       />
     </div>

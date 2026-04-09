@@ -18,6 +18,16 @@ import type {
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 MB
 const PREVIEW_PAGE_SIZE = 50
+const INVITE_TIMEOUT_MS = 10_000
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Request timed out")), ms)
+    ),
+  ])
+}
 
 export function useCsvImport() {
   const { workspace } = useAuth()
@@ -242,15 +252,18 @@ export function useCsvImport() {
       })
 
       try {
-        await inviteEmployee({
-          email: row.email,
-          first_name: row.first_name || undefined,
-          last_name: row.last_name || undefined,
-          role: row.role || "user",
-          department_id: row.department_id || null,
-          location: row.location || undefined,
-          hire_date: row.hire_date || undefined,
-        })
+        await withTimeout(
+          inviteEmployee({
+            email: row.email,
+            first_name: row.first_name || undefined,
+            last_name: row.last_name || undefined,
+            role: row.role || "user",
+            department_id: row.department_id || null,
+            location: row.location || undefined,
+            hire_date: row.hire_date || undefined,
+          }),
+          INVITE_TIMEOUT_MS
+        )
         results.push({ index: row.index, email: row.email, status: "success" })
       } catch (error) {
         const message =

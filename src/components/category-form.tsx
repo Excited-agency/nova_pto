@@ -111,6 +111,8 @@ export function CategoryForm({
     // Reset the ref so next frequency change will clear accrual_day
     frequencyChangeRef.current = true
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Intentional: granting_frequency excluded — a separate useEffect below handles
+    // it; including it here would cause a double-clear on simultaneous changes.
   }, [accrualMethod, setValue])
 
   // Clear accrual_day when granting_frequency changes (skip initial render)

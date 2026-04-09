@@ -77,19 +77,23 @@ export function RequestsPage() {
     setCurrentPage(1)
   }, [activeTab, debouncedSearch])
 
-  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / pageSize))
-  const safePage = Math.min(currentPage, totalPages)
+  const { totalPages, safePage } = useMemo(() => {
+    const total = Math.max(1, Math.ceil(filteredRequests.length / pageSize))
+    const safe = Math.min(currentPage, total)
+    return { totalPages: total, safePage: safe }
+  }, [filteredRequests.length, pageSize, currentPage])
+
   const paginatedRequests = useMemo(
     () => filteredRequests.slice((safePage - 1) * pageSize, safePage * pageSize),
     [filteredRequests, safePage, pageSize]
   )
 
-  const tabItems = [
+  const tabItems = useMemo(() => [
     { value: "all", label: "All requests", badge: counts.all || undefined },
     { value: "pending", label: "Pending", badge: counts.pending || undefined, badgeClassName: "group-data-[state=active]:bg-foreground group-data-[state=active]:text-background group-data-[state=inactive]:bg-foreground group-data-[state=inactive]:text-background" },
     { value: "approved", label: "Approved", badge: counts.approved || undefined },
     { value: "rejected", label: "Rejected", badge: counts.rejected || undefined },
-  ]
+  ], [counts.all, counts.pending, counts.approved, counts.rejected])
 
   const handleCreateRecord = useCallback(() => {
     setCreateModalOpen(true)

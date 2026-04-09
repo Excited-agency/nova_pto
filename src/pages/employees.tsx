@@ -345,15 +345,11 @@ export function EmployeesPage() {
   const somePageSelected =
     paginatedEmployees.some((e) => selectedIds.has(e.id)) && !allPageSelected
 
-  const tabItems = [
+  const tabItems = useMemo(() => [
     { value: "active", label: "Active", badge: adjustedCounts.active || undefined },
-    {
-      value: "inactive",
-      label: "Inactive",
-      badge: adjustedCounts.inactive || undefined,
-    },
+    { value: "inactive", label: "Inactive", badge: adjustedCounts.inactive || undefined },
     { value: "deleted", label: "Deleted", badge: adjustedCounts.deleted || undefined },
-  ]
+  ], [adjustedCounts.active, adjustedCounts.inactive, adjustedCounts.deleted])
 
   const handleToggleSelect = useCallback((id: string, checked: boolean) => {
     setSelectedIds((prev) => {
