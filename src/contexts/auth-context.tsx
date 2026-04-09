@@ -237,11 +237,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (event === "SIGNED_OUT" || event === "INITIAL_SESSION") {
             if (workspaceLoadedRef.current) {
               if (event === "SIGNED_OUT") {
-                addToast({
-                  title: "Session ended",
-                  description: "You've been signed out. Please log in again.",
-                  variant: "error",
-                })
+                // no toast — user triggered this, they already know
               }
               setProfile(null)
               setWorkspace(null)
