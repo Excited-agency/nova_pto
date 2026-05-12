@@ -39,7 +39,9 @@ Setup file `src/test/setup.ts` auto-mocks `@/lib/supabase` globally — individu
 
 Security and DB tests require a running local Supabase stack (`supabase start`) and read credentials from `.env.test` (`TEST_SUPABASE_*` vars, including `TEST_SUPABASE_SERVICE_ROLE_KEY`).
 
-**E2E tests** live in `e2e/` and use Playwright (`playwright.config.ts`). The dev server starts automatically. Credentials come from `.env.test` (`PLAYWRIGHT_BASE_URL` optional override). Page-object classes are in `e2e/page-objects/`.
+**E2E tests** live in `e2e/` and use Playwright (`playwright.config.ts`). The dev server starts automatically. Credentials come from `.env.test` (`PLAYWRIGHT_BASE_URL` optional override). Page-object classes are in `e2e/page-objects/`. Reusable test helpers live in `e2e/fixtures/`:
+- `e2e/fixtures/auth.ts` — `createTestUser()`, `seedSession()`, `cleanupTestUser()`, `createEphemeralAuthUser()`, `adminClient` (service-role Supabase client)
+- `e2e/fixtures/test-data.ts` — `createCategory()`, `createBalance()`, `createPendingRequest()`, `addEmployeeToWorkspace()`
 
 ## Environment
 
@@ -84,6 +86,10 @@ Pages do **not** fetch data directly. The layered pattern is: **Services → Hoo
 - `time_off_categories` — `id`, `workspace_id`, `name`, `emoji?`, `colour`, `is_active`, `leave_type` (`"paid" | "unpaid"`), `accrual_method`, `amount_value`, `granting_frequency`, `new_hire_rule`, `waiting_period_value/unit`, `carryover_limit_enabled`, `carryover_max_days`, `sort_order`, `created_at`, `updated_at`
 - `holidays` — `id`, `workspace_id`, `name`, `date`, `is_custom`, `country_code?`, `year?`, `created_at`, `updated_at`
 - `employee_balances` — `id`, `employee_id`, `category_id`, `workspace_id`, `remaining_days`, `created_at`, `updated_at`
+- `slack_installations` — Slack OAuth install data per workspace (`workspace_id`, `slack_team_id`, `bot_token`, etc.)
+- `slack_user_mappings` — maps Nova `profile_id` to Slack user IDs
+- `slack_interactions` — idempotency tracking for Slack button interactions
+- `slack_dm_messages` — per-admin DM channel/message references for updating Slack notifications in-place
 
 Migrations live in `supabase/migrations/`. Run `supabase db push` to apply them to a local/remote instance.
 
@@ -97,7 +103,8 @@ Defined in `src/App.tsx`. All page components are lazy-loaded via `React.lazy` +
 - `/employees/:id` — `EmployeeDetailsPage` (individual employee details view)
 - `/employees/:id/edit` — `EditEmployeePage` (uses shared `employee-form.tsx`; loads via `fetchEmployee`, saves via `updateEmployee`)
 - `/employees/import` — `ImportPreviewPage` (CSV bulk employee import with header mapping and validation)
-- `/settings` — `SettingsPage` (fully wired: workspace name/logo, profile name/avatar, departments CRUD, dirty-state guard)
+- `/settings` — role-resolved: `SettingsPage` (admin — workspace name/logo, profile name/avatar, departments CRUD, dirty-state guard) or `UserSettingsPage` (non-admin — employee-only profile editor for first/last name + avatar)
+- `/check-email` — `CheckEmailPage` (OTP 6-digit code entry, part of the magic-link auth sequence)
 - `/calendar` — stub placeholder
 - `/time-off-setup` — `TimeOffSetupPage` (categories CRUD with drag-and-drop reordering via `@dnd-kit`)
 - `/time-off-setup/new` — `AddCategoryPage` (uses shared `category-form.tsx`)
@@ -106,7 +113,7 @@ Defined in `src/App.tsx`. All page components are lazy-loaded via `React.lazy` +
 
 ### Types
 
-- `src/types/time-off-request.ts` — `TimeOffRequest`, `TimeOffStatus` (`"pending" | "approved" | "rejected"`), `TimeOffType` (`"vacation" | "sick_leave" | "personal" | "bereavement" | "other"`), `StartPeriod`, `EndPeriod` (half-day support)
+- `src/types/time-off-request.ts` — `TimeOffRequest`, `TimeOffStatus` (`"pending" | "approved" | "rejected" | "withdrawn"`), `TimeOffType` (`"vacation" | "sick_leave" | "personal" | "bereavement" | "other"`), `StartPeriod`, `EndPeriod` (half-day support)
 - `src/types/employee.ts` — `EmployeeStatus` (`"active" | "inactive" | "deleted"`)
 - `src/types/department.ts` — `Department` interface
 - `src/types/time-off-category.ts` — `TimeOffCategory`, `LeaveType`, `AccrualMethod`, `GrantingFrequency`, `NewHireRule`, `PeriodUnit`
@@ -155,10 +162,10 @@ All in `src/hooks/`. Each wraps one domain's service calls in TanStack Query:
 ### Supabase Edge Functions
 
 - `supabase/functions/invite-employee/` — Deno function: verifies caller JWT + admin role, creates Supabase auth user via admin API, inserts `profiles` row.
-- `supabase/functions/delete-workspace/` — workspace deletion
-- `supabase/functions/slack-oauth/` — Slack OAuth flow
-- `supabase/functions/slack-events/` — Slack event handling
-- `supabase/functions/slack-notify/` — Slack notifications
+- `supabase/functions/delete-workspace/` — workspace deletion (owner-only, cascades all workspace data)
+- `supabase/functions/slack-oauth/` — handles Slack OAuth callback, stores bot token in `slack_installations`
+- `supabase/functions/slack-events/` — receives Slack event payloads (button clicks, etc.), uses `slack_interactions` for idempotency
+- `supabase/functions/slack-notify/` — sends/updates DM notifications to admins via `slack_dm_messages`
 
 Deploy with `supabase functions deploy <function-name>`.
 
@@ -180,9 +187,9 @@ Custom tokens beyond shadcn defaults:
 ### Component conventions
 
 - UI primitives live in `src/components/ui/`. These are custom components (not auto-generated shadcn CLI output) built to match Figma specs exactly. Notable groups:
-  - **Combobox system**: `combobox-menu.tsx`, `combobox-search-field.tsx`, `combobox-menu-item.tsx`, `combobox-menu-label.tsx` — low-level primitives. `location-combobox.tsx` composes these with a static `src/data/cities.json` dataset (~500 entries, `{ name, country }`) for the employee location field. `employee-combobox.tsx` uses live data from `useActiveEmployeesForCombobox`.
+  - **Combobox system**: `combobox-menu.tsx`, `combobox-search-field.tsx`, `combobox-menu-item.tsx`, `combobox-menu-label.tsx` — low-level primitives. `location-combobox.tsx` composes these with a static `src/data/cities.json` dataset (~500 entries, `{ name, country }`) and `src/data/countries.ts` (`Country` interface + `countries` array with codes, names, and emoji flags) for the employee location field. `employee-combobox.tsx` uses live data from `useActiveEmployeesForCombobox`.
   - **Data table**: `data-table-header-cell.tsx`, `data-table-cell.tsx`, `data-table-pagination.tsx` — used in Requests and Employees pages.
-  - **Calendar primitives**: `calendar-cell.tsx`, `calendar-day-button.tsx`, `calendar-event-slot.tsx`, `calendar-header.tsx`, `calendar-arrow-button.tsx` — built but not yet wired to a live calendar page.
+  - **Calendar primitives**: `calendar-cell.tsx`, `calendar-day-button.tsx`, `calendar-event-slot.tsx`, `calendar-header.tsx`, `calendar-arrow-button.tsx` — low-level atoms. Higher-level composites live in `src/components/calendar/`: `CalendarMonthGrid`, `CalendarWeekRow`, `CalendarEventBar`, `CalendarFilters` — all built but not yet wired to a live calendar page.
 - Radix primitives come from the unified `radix-ui` package (e.g. `import { Tabs, Slot } from "radix-ui"`), **not** individual `@radix-ui/*` packages.
 - Component variants are built with `cva` from `class-variance-authority`.
 - All UI primitives use a `data-slot="<name>"` attribute for identification (e.g. `data-slot="button"`, `data-slot="tabs-trigger"`).

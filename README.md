@@ -10,6 +10,7 @@ Nova PTO is a production-grade time-off management platform for teams. Each comp
 
 ### Time-off Requests
 - Submit, approve, and reject leave requests
+- Employees can withdraw their own pending requests
 - Half-day support (morning/afternoon periods)
 - Real-time balance tracking per category
 - Request comment and rejection reason fields
@@ -46,7 +47,7 @@ Nova PTO is a production-grade time-off management platform for teams. Each comp
 
 ### Access Control
 - **Admin**: full access — employees, categories, requests, settings
-- **User**: self-service — submit and view own requests, personal settings
+- **User**: self-service — submit, view, and withdraw own requests; personal settings (name + avatar) via `/settings`
 
 ---
 
@@ -128,14 +129,15 @@ Nova_pto/
 │   ├── lib/                # Services, utilities, Zod schemas, constants
 │   ├── contexts/           # AuthContext, NavigationGuardContext
 │   ├── types/              # TypeScript interfaces
-│   ├── data/               # Static datasets (cities.json ~500 entries)
+│   ├── data/               # Static datasets (cities.json ~500 entries, countries.ts with flags)
 │   └── test/
 │       ├── unit/           # Pure logic tests
 │       ├── integration/    # Component-level tests with MSW
 │       ├── security/       # RLS / privilege-escalation tests (real Supabase)
 │       └── db/             # DB constraint and cascade tests
 ├── e2e/
-│   └── page-objects/       # Playwright page-object classes
+│   ├── page-objects/       # Playwright page-object classes
+│   └── fixtures/           # Shared test helpers (auth setup, test-data builders)
 ├── supabase/
 │   ├── migrations/         # 20+ ordered SQL migration files
 │   └── functions/          # 5 Deno Edge Functions
@@ -304,10 +306,14 @@ All tables are workspace-isolated via RLS. Migrations live in `supabase/migratio
 | `workspaces` | `id`, `name`, `logo_url`, `owner_id` (unique), `created_at` |
 | `profiles` | `id` (= auth user id), `workspace_id`, `role` (`admin\|user`), `email`, `first_name`, `last_name`, `avatar_url`, `status`, `department_id`, `location`, `hire_date` |
 | `departments` | `id`, `workspace_id`, `name` |
-| `time_off_requests` | `id`, `profile_id`, `workspace_id`, `category_id`, `start_date`, `end_date`, `start_period`, `end_period`, `total_days`, `status` (`pending\|approved\|rejected`), `comment`, `rejection_reason` |
+| `time_off_requests` | `id`, `profile_id`, `workspace_id`, `category_id`, `start_date`, `end_date`, `start_period`, `end_period`, `total_days`, `status` (`pending\|approved\|rejected\|withdrawn`), `comment`, `rejection_reason` |
 | `time_off_categories` | `id`, `workspace_id`, `name`, `emoji`, `colour`, `leave_type` (`paid\|unpaid`), `accrual_method`, `amount_value`, `granting_frequency`, `new_hire_rule`, `waiting_period_value`, `carryover_limit_enabled`, `carryover_max_days`, `sort_order` |
 | `holidays` | `id`, `workspace_id`, `name`, `date`, `is_custom`, `country_code`, `year` |
 | `employee_balances` | `id`, `employee_id`, `category_id`, `workspace_id`, `remaining_days` |
+| `slack_installations` | `workspace_id`, `slack_team_id`, `bot_token` — Slack OAuth install data per workspace |
+| `slack_user_mappings` | Maps Nova `profile_id` to Slack user IDs |
+| `slack_interactions` | Idempotency tracking for Slack button interactions |
+| `slack_dm_messages` | Per-admin DM channel/message references for in-place notification updates |
 
 ---
 
@@ -319,9 +325,9 @@ Deno-based functions deployed on Supabase Edge.
 |---|---|
 | `invite-employee` | Verifies admin JWT, creates auth user, inserts `profiles` row |
 | `delete-workspace` | Full workspace teardown (cascade) |
-| `slack-oauth` | Slack OAuth 2.0 callback handler |
-| `slack-events` | Slack event webhook (URL verification + event dispatch) |
-| `slack-notify` | Send Slack DM notifications to employees |
+| `slack-oauth` | Slack OAuth 2.0 callback — stores bot token in `slack_installations` |
+| `slack-events` | Slack event webhook (URL verification + event dispatch); uses `slack_interactions` for idempotency |
+| `slack-notify` | Sends/updates DM notifications to admins; tracks message refs in `slack_dm_messages` |
 
 ```bash
 # Deploy a specific function
