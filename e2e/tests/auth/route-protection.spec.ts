@@ -84,11 +84,13 @@ test.describe("Route protection", () => {
       await expect(page).toHaveURL(/\/access-restricted/)
     })
 
-    test("employee accessing /settings is redirected to /access-restricted", async ({ page }) => {
+    test("employee accessing /settings sees their own user settings page", async ({ page }) => {
       await seedSession(page, employeeUser)
       await page.goto("/settings")
       await page.waitForLoadState("networkidle")
-      await expect(page).toHaveURL(/\/access-restricted/)
+      await expect(page).not.toHaveURL(/\/access-restricted/)
+      await expect(page).not.toHaveURL(/\/login/)
+      await expect(page).toHaveURL(/\/settings/)
     })
 
     test("employee accessing /time-off-setup is redirected to /access-restricted", async ({

@@ -71,11 +71,12 @@ test.describe("Employee requests (self-service)", () => {
     await expect(page).toHaveURL(/\/access-restricted/)
   })
 
-  test("employee cannot access /settings page", async ({ page }) => {
+  test("employee can access /settings page (user settings)", async ({ page }) => {
     await seedSession(page, employeeUser)
     await page.goto("/settings")
     await page.waitForLoadState("networkidle")
-    await expect(page).toHaveURL(/\/access-restricted/)
+    await expect(page).not.toHaveURL(/\/access-restricted/)
+    await expect(page).not.toHaveURL(/\/login/)
   })
 
   test("employee cannot access /time-off-setup page", async ({ page }) => {
