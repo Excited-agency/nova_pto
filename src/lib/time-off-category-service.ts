@@ -135,6 +135,7 @@ export async function updateCategorySortOrder(
     )
   )
 
-  const firstError = results.find((r) => r.error)
-  if (firstError?.error) throw firstError.error
+  const errors = results.filter((r) => r.error).map((r) => r.error!)
+  if (errors.length === 1) throw errors[0]
+  if (errors.length > 1) throw new Error(`${errors.length} sort order updates failed: ${errors[0].message}`)
 }

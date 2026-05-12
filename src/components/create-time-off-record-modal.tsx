@@ -222,7 +222,7 @@ export function CreateTimeOffRecordModal({
         },
         onError: (error) => {
           addToast({
-            title: "Failed to create record",
+            title: "Couldn't create record",
             description: error.message,
             variant: "error",
           })

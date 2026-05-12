@@ -190,11 +190,11 @@ export function EmployeeRequestsPage() {
     if (!withdrawTarget) return
     withdrawMutation.mutate(withdrawTarget.id, {
       onSuccess: () => {
-        addToast({ variant: "success", title: "Request withdrawn", description: "Your time off request has been withdrawn." })
+        addToast({ variant: "success", title: "Request withdrawn" })
         setWithdrawTarget(null)
       },
       onError: () => {
-        addToast({ variant: "error", title: "Failed to withdraw", description: "Something went wrong. Please try again." })
+        addToast({ variant: "error", title: "Couldn't withdraw request", description: "Something went wrong. Try again." })
       },
     })
   }
@@ -319,6 +319,7 @@ export function EmployeeRequestsPage() {
         onOpenChange={(open) => { if (!open) setDetailsRequest(null) }}
         request={detailsRequest}
         categoryMap={categoryMap}
+        hideEmployee
       />
 
       <AlertDialog

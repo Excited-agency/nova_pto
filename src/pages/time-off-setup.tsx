@@ -202,13 +202,13 @@ export function TimeOffSetupPage() {
     bulkDeleteHolidaysMutation.mutate(ids, {
       onSuccess: () => {
         addToast({
-          title: `Successfully deleted ${ids.length} holiday${ids.length > 1 ? "s" : ""}`,
+          title: `${ids.length} holiday${ids.length > 1 ? "s" : ""} deleted`,
           variant: "success",
         })
       },
       onError: () => {
         queryClient.invalidateQueries({ queryKey: holidayKeys.all(workspace.id) })
-        addToast({ title: "Failed to delete holidays", variant: "error" })
+        addToast({ title: "Couldn't delete holidays", variant: "error" })
       },
     })
   }, [selectedHolidayIds, workspace, queryClient, bulkDeleteHolidaysMutation])

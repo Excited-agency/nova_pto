@@ -259,6 +259,9 @@ export async function submitTimeOffRequest(params: SubmitTimeOffRequestParams) {
         employee_profile_id: params.profile_id,
       },
     })
+    .then(({ error: fnError }) => {
+      if (fnError) console.warn("[slack-notify] submit notification failed:", fnError.message)
+    })
     .catch((err) => {
       console.warn("[submitTimeOffRequest] Slack notification failed (non-fatal):", err)
     })

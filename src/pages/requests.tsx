@@ -104,9 +104,9 @@ export function RequestsPage() {
     setDownloading(true)
     try {
       await generateReport(workspace.id)
-      addToast({ title: "Report downloaded", description: "Your time-off report has been saved" })
+      addToast({ title: "Report downloaded" })
     } catch {
-      addToast({ title: "Download failed", description: "Something went wrong generating the report" })
+      addToast({ title: "Couldn't download report", description: "Something went wrong. Try again." })
     } finally {
       setDownloading(false)
     }

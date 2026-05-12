@@ -5,13 +5,41 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm run dev       # Start dev server (Vite HMR)
-npm run build     # Production build
-npm run lint      # ESLint
-npm run preview   # Preview production build
+npm run dev             # Start dev server (Vite HMR)
+npm run build           # Production build
+npm run lint            # ESLint
+npm run preview         # Preview production build
+
+# Unit / integration / security tests (Vitest + jsdom)
+npm test                # Run all Vitest tests once
+npm run test:watch      # Vitest in watch mode
+npm run test:coverage   # Coverage report (v8)
+npm run test:security   # Only src/test/security/
+npm run test:db         # Only src/test/db/
+
+# E2E tests (Playwright, Chromium)
+npm run test:e2e        # Headless
+npm run test:e2e:ui     # Playwright UI mode
+npm run test:e2e:headed # Headed (visible browser)
+
+npm run test:all        # Vitest + Playwright
 ```
 
-No test runner is configured yet.
+## Testing
+
+**Unit/integration tests** live in `src/test/` and are run with Vitest (`vitest.config.ts`).  
+Setup file `src/test/setup.ts` auto-mocks `@/lib/supabase` globally — individual tests override as needed.
+
+| Folder | What's inside |
+|---|---|
+| `src/test/unit/` | Pure logic (lib utils, hooks) |
+| `src/test/integration/` | Component-level tests with MSW or mocked services |
+| `src/test/security/` | RLS / privilege-escalation tests hitting a real local Supabase |
+| `src/test/db/` | DB constraint, cascade-delete, and RPC tests |
+
+Security and DB tests require a running local Supabase stack (`supabase start`) and read credentials from `.env.test` (`TEST_SUPABASE_*` vars, including `TEST_SUPABASE_SERVICE_ROLE_KEY`).
+
+**E2E tests** live in `e2e/` and use Playwright (`playwright.config.ts`). The dev server starts automatically. Credentials come from `.env.test` (`PLAYWRIGHT_BASE_URL` optional override). Page-object classes are in `e2e/page-objects/`.
 
 ## Environment
 

@@ -16,6 +16,7 @@ import { employeeKeys, departmentKeys, activeEmployeeKeys } from "@/lib/query-ke
 import { addToast } from "@/lib/toast"
 import { cn, getInitials } from "@/lib/utils"
 import { useAuth } from "@/hooks/use-auth"
+import { INVITE_TIMEOUT_MS } from "@/lib/constants"
 import type { CsvEmployeeRow, RowValidation, ImportRowResult } from "@/types/csv-import"
 
 interface ImportPreviewState {
@@ -23,8 +24,6 @@ interface ImportPreviewState {
   validationEntries: [number, RowValidation[]][]
   mappedColumnCount: number
 }
-
-const INVITE_TIMEOUT_MS = 10_000
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([
@@ -159,7 +158,7 @@ export function ImportPreviewPage() {
     addToast({
       title:
         successCount > 0
-          ? `${successCount} employee${successCount !== 1 ? "s" : ""} added`
+          ? `${successCount} employee${successCount !== 1 ? "s" : ""} imported`
           : "Import failed",
       description,
       variant: failures.length > 0 && successCount === 0 ? "error" : successCount > 0 ? "success" : undefined,

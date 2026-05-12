@@ -189,13 +189,13 @@ export function SubmitTimeOffRequestModal({
         onSuccess: () => {
           addToast({
             title: "Request submitted",
-            description: "Your time-off request has been submitted for approval",
+            description: "Pending manager approval.",
           })
           onOpenChange(false)
         },
         onError: (error) => {
           addToast({
-            title: "Failed to submit request",
+            title: "Couldn't submit request",
             description: error.message,
             variant: "error",
           })

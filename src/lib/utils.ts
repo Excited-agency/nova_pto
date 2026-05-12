@@ -25,7 +25,7 @@ export function validateImageFile(file: File): string | null {
     return "Only PNG and JPG files are allowed."
   }
   if (file.size > IMAGE_MAX_SIZE) {
-    return "File is too large. Max size is 2 MB."
+    return "File is too large. Max size is 5 MB."
   }
   return null
 }

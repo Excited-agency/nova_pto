@@ -136,7 +136,7 @@ export function SettingsPage() {
     return false
   }, [workspaceName, firstName, lastName, logoFile, avatarFile, logoRemoved, avatarRemoved, departments, deletedDepartmentIds, initialValues])
 
-  // Navigation guard
+  // Navigation guard (sidebar clicks)
   useEffect(() => {
     registerGuard(() => {
       if (!isDirty) return true
@@ -145,7 +145,7 @@ export function SettingsPage() {
     return () => unregisterGuard()
   }, [isDirty, registerGuard, unregisterGuard])
 
-  // beforeunload
+  // beforeunload (browser tab close / hard refresh)
   useEffect(() => {
     if (!isDirty) return
     const handler = (e: BeforeUnloadEvent) => {
@@ -267,6 +267,11 @@ export function SettingsPage() {
     setDeleting(true)
     try {
       await deleteWorkspace(workspace.id, deleteConfirmation)
+      addToast({
+        title: "Workspace deleted",
+        description: "All workspace data has been permanently deleted.",
+        variant: "success",
+      })
       queryClient.clear()
       unregisterGuard()
       await signOut()
@@ -274,8 +279,8 @@ export function SettingsPage() {
     } catch (err) {
       console.error("Failed to delete workspace:", err)
       addToast({
-        title: "Failed to delete workspace",
-        description: err instanceof Error ? err.message : "Please try again",
+        title: "Couldn't delete workspace",
+        description: err instanceof Error ? err.message : "Try again.",
       })
       setDeleting(false)
     }
@@ -374,10 +379,10 @@ export function SettingsPage() {
         avatarUrl: newAvatarUrl,
         departments: rows,
       })
-      addToast({ title: "Settings saved", description: "Your changes have been saved successfully" })
+      addToast({ title: "Settings saved" })
     } catch (err) {
       console.error("Failed to save settings:", err)
-      addToast({ title: "Failed to save settings", description: "Please try again" })
+      addToast({ title: "Couldn't save settings", description: "Try again." })
     } finally {
       setSaving(false)
     }
@@ -466,7 +471,7 @@ export function SettingsPage() {
                     </Button>
                   </div>
                   <p className="text-xs leading-4 text-muted-foreground">
-                    PNG or JPG, up to 2 MB
+                    PNG or JPG, up to 5 MB
                   </p>
                 </div>
               </div>
@@ -536,7 +541,7 @@ export function SettingsPage() {
                     </Button>
                   </div>
                   <p className="text-xs leading-4 text-muted-foreground">
-                    PNG or JPG, up to 2 MB
+                    PNG or JPG, up to 5 MB
                   </p>
                 </div>
               </div>

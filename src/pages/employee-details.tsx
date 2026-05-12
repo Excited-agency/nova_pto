@@ -90,7 +90,7 @@ export function EmployeeDetailsPage() {
 
   useEffect(() => {
     if (isError) {
-      addToast({ title: "Employee not found", description: "Could not load employee details" })
+      addToast({ title: "Employee not found", description: "Couldn't load this employee." })
       navigate("/employees")
     }
   }, [isError, navigate])
@@ -115,7 +115,7 @@ export function EmployeeDetailsPage() {
       if (value !== initialValues[categoryId]) {
         const parsed = parseFloat(value)
         if (isNaN(parsed) || parsed < 0) {
-          addToast({ title: "Invalid value", description: "Please enter valid numbers for all balances" })
+          addToast({ title: "Invalid value", description: "Enter valid numbers for all balances." })
           return
         }
         updates.push({ categoryId, remainingDays: parsed })
@@ -126,7 +126,7 @@ export function EmployeeDetailsPage() {
 
     await updateBalancesMutation.mutateAsync({ employeeId: id, updates })
     setInitialValues({ ...balanceValues })
-    addToast({ title: "Balances updated", description: "Leave balances have been saved successfully" })
+    addToast({ title: "Balances updated", description: "Leave balances saved." })
   }
 
   function handleDeactivate() {

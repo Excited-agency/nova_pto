@@ -329,7 +329,7 @@ export function EmployeeForm({
                 <p className="text-xs text-destructive">{fileError}</p>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  PNG or JPG, up to 2 MB
+                  PNG or JPG, up to 5 MB
                 </p>
               )}
             </div>

@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase"
 import { mapHeaders } from "@/lib/csv-header-mapping"
 import { processRows, rowHasErrors } from "@/lib/csv-validation"
 import { employeeKeys, departmentKeys, activeEmployeeKeys } from "@/lib/query-keys"
+import { INVITE_TIMEOUT_MS } from "@/lib/constants"
 import type {
   ImportStep,
   CsvEmployeeRow,
@@ -18,7 +19,6 @@ import type {
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 MB
 const PREVIEW_PAGE_SIZE = 50
-const INVITE_TIMEOUT_MS = 10_000
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([

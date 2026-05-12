@@ -65,50 +65,6 @@ export function DataTablePagination({
     )
   }
 
-  function renderDetailed() {
-    const options = rowsPerPageOptions ?? ["5", "10", "20", "50"]
-    return (
-      <>
-        <div className="flex items-center gap-2">
-          <p className="shrink-0 text-sm font-medium leading-5 tracking-tight text-foreground whitespace-nowrap">
-            Rows per page
-          </p>
-          <Select value={rowsPerPage} onValueChange={onRowsPerPageChange}>
-            <SelectTrigger className="w-[64px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {options.map((opt) => (
-                <SelectItem key={opt} value={opt}>
-                  {opt}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <p className="shrink-0 text-sm font-normal leading-5 tracking-tight text-foreground whitespace-nowrap">
-          Page {currentPage} of {totalPages}
-        </p>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" disabled={!canPrevious} onClick={onFirstPage}>
-            <ChevronsLeftIcon className="size-4" />
-          </Button>
-          <Button variant="outline" size="icon" disabled={!canPrevious} onClick={onPrevious}>
-            <ChevronLeftIcon className="size-4" />
-          </Button>
-          <Button variant="outline" size="icon" disabled={!canNext} onClick={onNext}>
-            <ChevronRightIcon className="size-4" />
-          </Button>
-          <Button variant="outline" size="icon" disabled={!canNext} onClick={onLastPage}>
-            <ChevronsRightIcon className="size-4" />
-          </Button>
-        </div>
-      </>
-    )
-  }
-
   return (
     <div
       data-slot="data-table-pagination"
@@ -116,13 +72,51 @@ export function DataTablePagination({
       className={cn("flex h-[52px] w-full items-center justify-between pt-4", className)}
       {...props}
     >
-      <p className="shrink-0 text-sm font-normal leading-6 text-muted-foreground whitespace-nowrap">
-        {selectedCount > 0 && `${selectedCount} of ${totalRows} row(s) selected.`}
-      </p>
+      {type === "detailed" ? (
+        <>
+          <div className="flex items-center gap-2">
+            <p className="shrink-0 text-sm font-medium leading-5 tracking-tight text-foreground whitespace-nowrap">
+              Rows per page
+            </p>
+            <Select value={rowsPerPage} onValueChange={onRowsPerPageChange}>
+              <SelectTrigger className="w-[64px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(rowsPerPageOptions ?? ["5", "10", "20", "50"]).map((opt) => (
+                  <SelectItem key={opt} value={opt}>
+                    {opt}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-      <div className={cn("flex items-center pl-2", type === "detailed" ? "gap-9" : "gap-2")}>
-        {type === "detailed" ? renderDetailed() : renderSimple()}
-      </div>
+          <div className="flex items-center gap-4">
+            <p className="shrink-0 text-sm font-normal leading-5 tracking-tight text-foreground whitespace-nowrap">
+              Page {currentPage} of {totalPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" disabled={!canPrevious} onClick={onFirstPage}>
+                <ChevronsLeftIcon className="size-4" />
+              </Button>
+              <Button variant="outline" size="icon" disabled={!canPrevious} onClick={onPrevious}>
+                <ChevronLeftIcon className="size-4" />
+              </Button>
+              <Button variant="outline" size="icon" disabled={!canNext} onClick={onNext}>
+                <ChevronRightIcon className="size-4" />
+              </Button>
+              <Button variant="outline" size="icon" disabled={!canNext} onClick={onLastPage}>
+                <ChevronsRightIcon className="size-4" />
+              </Button>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="flex items-center gap-2 ml-auto">
+          {renderSimple()}
+        </div>
+      )}
     </div>
   )
 }

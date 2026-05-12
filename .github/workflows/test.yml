@@ -1,0 +1,115 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─── Job 1: Unit + Integration (no Supabase needed) ───────────────────────
+  unit-integration:
+    name: Unit & Integration Tests
+    runs-on: ubuntu-latest
+    env:
+      VITE_SUPABASE_URL: http://localhost:54321
+      VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRFA0NiK7kyqd6KDlFFC6eNl29zprealmgx9YuBAmTQ
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run unit & integration tests with coverage
+        run: npm run test:coverage
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/
+
+  # ─── Job 2: Security + DB integrity tests ─────────────────────────────────
+  security-db:
+    name: Security & DB Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: npm ci
+      - name: Start local Supabase
+        run: supabase start
+      - name: Export Supabase credentials
+        run: |
+          SUPABASE_STATUS=$(supabase status --output json)
+          echo "SUPA_URL=$(echo "$SUPABASE_STATUS" | jq -r '.API_URL')" >> "$GITHUB_ENV"
+          echo "SUPA_ANON=$(echo "$SUPABASE_STATUS" | jq -r '.ANON_KEY')" >> "$GITHUB_ENV"
+          echo "SUPA_SERVICE=$(echo "$SUPABASE_STATUS" | jq -r '.SERVICE_ROLE_KEY')" >> "$GITHUB_ENV"
+      - name: Run security tests
+        run: npm run test:security
+        env:
+          TEST_SUPABASE_URL: ${{ env.SUPA_URL }}
+          TEST_SUPABASE_ANON_KEY: ${{ env.SUPA_ANON }}
+          TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ env.SUPA_SERVICE }}
+          VITE_SUPABASE_URL: ${{ env.SUPA_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ env.SUPA_ANON }}
+      - name: Run DB integrity tests
+        run: npm run test:db
+        env:
+          TEST_SUPABASE_URL: ${{ env.SUPA_URL }}
+          TEST_SUPABASE_ANON_KEY: ${{ env.SUPA_ANON }}
+          TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ env.SUPA_SERVICE }}
+          VITE_SUPABASE_URL: ${{ env.SUPA_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ env.SUPA_ANON }}
+
+  # ─── Job 3: E2E tests ─────────────────────────────────────────────────────
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: Start local Supabase
+        run: supabase start
+      - name: Export Supabase credentials
+        run: |
+          SUPABASE_STATUS=$(supabase status --output json)
+          echo "SUPA_URL=$(echo "$SUPABASE_STATUS" | jq -r '.API_URL')" >> "$GITHUB_ENV"
+          echo "SUPA_ANON=$(echo "$SUPABASE_STATUS" | jq -r '.ANON_KEY')" >> "$GITHUB_ENV"
+          echo "SUPA_SERVICE=$(echo "$SUPABASE_STATUS" | jq -r '.SERVICE_ROLE_KEY')" >> "$GITHUB_ENV"
+      - name: Run E2E tests
+        run: npm run test:e2e
+        env:
+          CI: true
+          PLAYWRIGHT_BASE_URL: http://localhost:5173
+          VITE_SUPABASE_URL: ${{ env.SUPA_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ env.SUPA_ANON }}
+          TEST_SUPABASE_URL: ${{ env.SUPA_URL }}
+          TEST_SUPABASE_ANON_KEY: ${{ env.SUPA_ANON }}
+          TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ env.SUPA_SERVICE }}
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/

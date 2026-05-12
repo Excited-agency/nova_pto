@@ -21,7 +21,7 @@ export function EditEmployeePage() {
 
   useEffect(() => {
     if (isError) {
-      addToast({ title: "Employee not found", description: "Could not load employee details" })
+      addToast({ title: "Employee not found", description: "Couldn't load this employee." })
       navigate("/employees")
     }
   }, [isError, navigate])
@@ -52,10 +52,7 @@ export function EditEmployeePage() {
       },
     })
 
-    addToast({
-      title: "Changes saved successfully",
-      description: "Employee details have been updated",
-    })
+    addToast({ title: "Changes saved" })
     navigate(backPath)
   }
 

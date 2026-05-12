@@ -66,10 +66,10 @@ export function CheckEmailPage() {
         options: { emailRedirectTo: `${getSiteUrl()}/auth/callback` },
       })
       if (error) throw error
-      addToast({ title: "Email resent", description: `A new login link was sent to ${email}` })
+      addToast({ title: "Email resent", description: `A new link was sent to ${email}.` })
     } catch (err) {
       console.error("Failed to resend OTP:", err)
-      addToast({ title: "Failed to resend", description: "Please try again in a moment" })
+      addToast({ title: "Couldn't resend email", description: "Try again in a moment." })
     } finally {
       setResending(false)
     }

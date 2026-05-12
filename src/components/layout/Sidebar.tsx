@@ -31,6 +31,7 @@ const adminNavItems = [
 const employeeNavItems = [
   { label: "Requests", icon: ListCheck, path: "/requests" },
   { label: "Calendar", icon: Calendar, path: "/calendar" },
+  { label: "Settings", icon: Settings, path: "/settings" },
 ]
 
 export function Sidebar() {

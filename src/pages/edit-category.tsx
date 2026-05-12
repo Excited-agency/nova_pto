@@ -43,10 +43,7 @@ export function EditCategoryPage() {
 
   useEffect(() => {
     if (isError) {
-      addToast({
-        title: "Category not found",
-        description: "Could not load category details",
-      })
+      addToast({ title: "Category not found", description: "Couldn't load this category." })
       navigate("/time-off-setup")
     }
   }, [isError, navigate])
@@ -86,10 +83,7 @@ export function EditCategoryPage() {
       },
     })
 
-    addToast({
-      title: "Changes saved",
-      description: `${data.name} has been updated`,
-    })
+    addToast({ title: "Category updated" })
     navigate("/time-off-setup")
   }
 

@@ -392,7 +392,7 @@ export function EmployeesPage() {
         onSuccess: () => {
           addToast({
             title: "Employee activated",
-            description: `${getDisplayName(emp.first_name, emp.last_name) || emp.email} is now back in the Active list`,
+            description: `${getDisplayName(emp.first_name, emp.last_name) || emp.email} is now active.`,
           })
         },
       }
@@ -427,13 +427,13 @@ export function EmployeesPage() {
       {
         onSuccess: () => {
           addToast({
-            title: `Successfully deactivated ${ids.length} employee${ids.length > 1 ? "s" : ""}`,
+            title: `${ids.length} employee${ids.length > 1 ? "s" : ""} deactivated`,
             variant: "success",
           })
         },
         onError: () => {
           queryClient.invalidateQueries({ queryKey: employeeKeys.all(workspace.id) })
-          addToast({ title: "Failed to deactivate employees", variant: "error" })
+          addToast({ title: "Couldn't deactivate employees", variant: "error" })
         },
       }
     )
@@ -453,13 +453,13 @@ export function EmployeesPage() {
       {
         onSuccess: () => {
           addToast({
-            title: `Successfully deleted ${ids.length} employee${ids.length > 1 ? "s" : ""}`,
+            title: `${ids.length} employee${ids.length > 1 ? "s" : ""} deleted`,
             variant: "success",
           })
         },
         onError: () => {
           queryClient.invalidateQueries({ queryKey: employeeKeys.all(workspace.id) })
-          addToast({ title: "Failed to delete employees", variant: "error" })
+          addToast({ title: "Couldn't delete employees", variant: "error" })
         },
       }
     )

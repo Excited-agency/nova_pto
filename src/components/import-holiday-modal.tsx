@@ -191,12 +191,12 @@ export function ImportHolidayModal({ open, onOpenChange }: ImportHolidayModalPro
         onSuccess: () => {
           addToast({
             title: "Holidays imported",
-            description: "Holiday calendar updated successfully. Old imports have been replaced.",
+            description: "Previous imports have been replaced.",
           })
           onOpenChange(false)
         },
         onError: () => {
-          addToast({ variant: "error", title: "Failed to import holidays", description: "Something went wrong. Please try again." })
+          addToast({ variant: "error", title: "Couldn't import holidays", description: "Something went wrong. Try again." })
         },
       }
     )

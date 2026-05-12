@@ -65,11 +65,11 @@ export function HolidayModal({ open, onOpenChange, holiday }: HolidayModalProps)
         { holidayId: holiday!.id, data: { name: name.trim(), date: dateStr } },
         {
           onSuccess: () => {
-            addToast({ title: "Holiday updated", description: `${name.trim()} has been updated` })
+            addToast({ title: "Holiday updated" })
             onOpenChange(false)
           },
           onError: () => {
-            addToast({ variant: "error", title: "Failed to update holiday", description: "Something went wrong. Please try again." })
+            addToast({ variant: "error", title: "Couldn't update holiday", description: "Something went wrong. Try again." })
           },
         }
       )
@@ -83,11 +83,11 @@ export function HolidayModal({ open, onOpenChange, holiday }: HolidayModalProps)
         },
         {
           onSuccess: () => {
-            addToast({ title: "Holiday created", description: `${name.trim()} has been added` })
+            addToast({ title: "Holiday created" })
             onOpenChange(false)
           },
           onError: () => {
-            addToast({ variant: "error", title: "Failed to create holiday", description: "Something went wrong. Please try again." })
+            addToast({ variant: "error", title: "Couldn't create holiday", description: "Something went wrong. Try again." })
           },
         }
       )

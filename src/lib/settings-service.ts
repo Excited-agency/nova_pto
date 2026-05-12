@@ -98,7 +98,11 @@ export async function deleteWorkspace(
     body: { workspace_id: workspaceId, confirmation_name: confirmationName },
   })
 
-  if (error) throw error
+  if (error) {
+    // Extract the actual error message from the Edge Function response body
+    const body = await (error as { context?: Response }).context?.json?.().catch(() => null)
+    throw new Error(body?.error ?? error.message)
+  }
   if (data?.error) throw new Error(data.error)
   return data
 }

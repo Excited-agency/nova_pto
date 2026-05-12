@@ -54,15 +54,12 @@ export function RejectTimeOffRequestModal({
       { requestId: request.id, reason: reason.trim() },
       {
         onSuccess: () => {
-          addToast({
-            title: "Request rejected",
-            description: `${request.employee_name}'s time-off request has been rejected`,
-          })
+          addToast({ title: "Request rejected" })
           handleClose(false)
         },
         onError: (error) => {
           addToast({
-            title: "Failed to reject request",
+            title: "Couldn't reject request",
             description: error.message,
             variant: "error",
           })

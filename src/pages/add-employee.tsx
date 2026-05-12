@@ -4,7 +4,7 @@ import { Users, ChevronRight } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import { BreadcrumbItem } from "@/components/ui/breadcrumb-item"
 import { EmployeeForm, type EmployeeFormData } from "@/components/employee-form"
-import { uploadImage } from "@/lib/settings-service"
+import { uploadImage, removeImage } from "@/lib/settings-service"
 import { useInviteEmployeeMutation } from "@/hooks/use-employees"
 import { addToast } from "@/lib/toast"
 
@@ -19,22 +19,27 @@ export function AddEmployeePage() {
       avatarUrl = await uploadImage("avatars", "employees", data.avatarFile)
     }
 
-    await inviteMutation.mutateAsync({
-      email: data.email,
-      first_name: data.firstName || undefined,
-      last_name: data.lastName || undefined,
-      role: data.role,
-      department_id: data.departmentId || null,
-      location: data.location || undefined,
-      hire_date: data.startDate
-        ? data.startDate.toISOString().split("T")[0]
-        : undefined,
-      avatar_url: avatarUrl,
-    })
+    try {
+      await inviteMutation.mutateAsync({
+        email: data.email,
+        first_name: data.firstName || undefined,
+        last_name: data.lastName || undefined,
+        role: data.role,
+        department_id: data.departmentId || null,
+        location: data.location || undefined,
+        hire_date: data.startDate
+          ? data.startDate.toISOString().split("T")[0]
+          : undefined,
+        avatar_url: avatarUrl,
+      })
+    } catch (err) {
+      if (avatarUrl) removeImage("avatars", avatarUrl).catch(() => {})
+      throw err
+    }
 
     addToast({
-      title: "Employee added successfully",
-      description: `An invitation has been sent to ${data.email}.`,
+      title: "Invitation sent",
+      description: `${data.email} will receive a sign-in link.`,
     })
     navigate("/employees")
   }

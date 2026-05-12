@@ -114,10 +114,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!profileData) {
       const currentUser = user ?? (await supabase.auth.getUser()).data.user
       if (currentUser) {
+        let recoveryError: Error | undefined
         try {
           await runFounderFlow(currentUser.id, currentUser.email ?? "")
         } catch (err) {
-          console.error("[Auth] Founder flow recovery failed:", err)
+          recoveryError = err instanceof Error ? err : new Error(String(err))
+          console.error("[Auth] Founder flow recovery failed:", recoveryError)
         }
         const { data } = await supabase
           .from("profiles")
@@ -125,6 +127,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .eq("id", userId)
           .maybeSingle()
         profileData = data
+
+        if (!profileData) {
+          throw new Error(
+            recoveryError
+              ? `Profile not found. Recovery also failed: ${recoveryError.message}`
+              : "Profile not found after recovery attempt"
+          )
+        }
       }
     }
 
@@ -194,7 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   setAuthError("Unable to load your account data. Please check your connection and try again.")
                   addToast({
                     title: "Connection issue",
-                    description: "Unable to refresh your session. Please check your connection.",
+                    description: "Couldn't refresh your session. Check your connection.",
                     variant: "error",
                   })
                 }
@@ -208,6 +218,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Cross-tab sign-in: re-enter loading state so auth pages
           // don't redirect before workspace/profile are loaded
           if (resolved && event === "SIGNED_IN") {
+            if (workspaceLoadedRef.current) {
+              // Token refreshed for already-authenticated user — skip re-fetch, no spinner
+              return
+            }
             if (!cancelled) setLoading(true)
           }
 

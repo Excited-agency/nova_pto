@@ -45,15 +45,12 @@ export function ApproveTimeOffRequestModal({
       { requestId: request.id, profileId: request.profile_id },
       {
         onSuccess: () => {
-          addToast({
-            title: "Request approved",
-            description: `${request.employee_name}'s time-off request has been approved`,
-          })
+          addToast({ title: "Request approved" })
           onOpenChange(false)
         },
         onError: (error) => {
           addToast({
-            title: "Failed to approve request",
+            title: "Couldn't approve request",
             description: error.message,
             variant: "error",
           })

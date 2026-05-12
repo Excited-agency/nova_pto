@@ -54,7 +54,7 @@ export function AddCategoryPage() {
 
     addToast({
       title: "Category created",
-      description: `${data.name} has been added successfully`,
+      description: `${data.name} has been added.`,
     })
     navigate("/time-off-setup")
   }

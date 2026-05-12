@@ -58,11 +58,18 @@ const EditCategoryPage = lazy(() => import("@/pages/edit-category").then(m => ({
 const ImportPreviewPage = lazy(() => import("@/pages/import-preview").then(m => ({ default: m.ImportPreviewPage })))
 const CalendarPage = lazy(() => import("@/pages/calendar").then(m => ({ default: m.CalendarPage })))
 const EmployeeRequestsPage = lazy(() => import("@/pages/employee-requests").then(m => ({ default: m.EmployeeRequestsPage })))
+const UserSettingsPage = lazy(() => import("@/pages/user-settings").then(m => ({ default: m.UserSettingsPage })))
 
 function RequestsRoute() {
   const { profile } = useAuth()
   if (profile?.role !== "admin") return <EmployeeRequestsPage />
   return <RequestsPage />
+}
+
+function SettingsRoute() {
+  const { profile } = useAuth()
+  if (profile?.role !== "admin") return <UserSettingsPage />
+  return <SettingsPage />
 }
 
 export default function App() {
@@ -96,7 +103,7 @@ export default function App() {
               <Route path="time-off-setup" element={<AdminRoute><TimeOffSetupPage /></AdminRoute>} />
               <Route path="time-off-setup/new" element={<AdminRoute><AddCategoryPage /></AdminRoute>} />
               <Route path="time-off-setup/:id/edit" element={<AdminRoute><EditCategoryPage /></AdminRoute>} />
-              <Route path="settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
+              <Route path="settings" element={<SettingsRoute />} />
             </Route>
             <Route path="*" element={<Navigate to="/requests" replace />} />
           </Routes>

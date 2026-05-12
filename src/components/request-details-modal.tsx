@@ -25,6 +25,7 @@ interface RequestDetailsModalProps {
   request: TimeOffRequest | null
   categoryMap: Map<string, { name: string; emoji?: string | null }>
   canSeeComment?: boolean
+  hideEmployee?: boolean
 }
 
 export function RequestDetailsModal({
@@ -33,6 +34,7 @@ export function RequestDetailsModal({
   request,
   categoryMap,
   canSeeComment,
+  hideEmployee,
 }: RequestDetailsModalProps) {
   if (!request) return null
 
@@ -50,16 +52,18 @@ export function RequestDetailsModal({
         </DialogHeader>
 
         <div className="bg-secondary rounded-xl p-4 flex flex-col gap-3">
-          <InfoRow label="Employee">
-            <Avatar
-              size="2xs"
-              shape="square"
-              src={request.employee_avatar_url}
-              alt={request.employee_name}
-              fallback={initials}
-            />
-            <span>{request.employee_name}</span>
-          </InfoRow>
+          {!hideEmployee && (
+            <InfoRow label="Employee">
+              <Avatar
+                size="2xs"
+                shape="square"
+                src={request.employee_avatar_url}
+                alt={request.employee_name}
+                fallback={initials}
+              />
+              <span>{request.employee_name}</span>
+            </InfoRow>
+          )}
 
           <InfoRow label="Request type">
             <span>{getCategoryDisplay(request, categoryMap)}</span>
