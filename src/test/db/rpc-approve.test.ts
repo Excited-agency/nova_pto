@@ -55,6 +55,9 @@ describe.skipIf(skipIfNoServiceKey())("RPC: approve_time_off_request (DB-1..8)",
       workspace_id: admin.workspaceId,
       remaining_days: 10,
     }, { onConflict: "employee_id,category_id" })
+
+    // Remove any holidays from the test workspace so business-day calculations are deterministic
+    await serviceClient.from("holidays").delete().eq("workspace_id", admin.workspaceId)
   }, 30_000)
 
   afterAll(async () => {

@@ -98,6 +98,26 @@ describe.skipIf(skipIfNoServiceKey())("RPC workspace isolation (CRIT-17..22)", (
     })
   })
 
+  describe("CRIT-21: reject_time_off_request cross-workspace blocked", () => {
+    it("Admin B cannot reject request in workspace A", async () => {
+      const { error } = await adminB.userClient.rpc("reject_time_off_request", {
+        p_request_id: pendingRequestInA.id,
+        p_rejection_reason: "Test rejection",
+      })
+
+      expect(error).toBeTruthy()
+      expect(error!.message.toLowerCase()).toMatch(/permission denied|workspace/i)
+
+      // Verify request still pending
+      const { data } = await serviceClient
+        .from("time_off_requests")
+        .select("status")
+        .eq("id", pendingRequestInA.id)
+        .single()
+      expect(data?.status).toBe("pending")
+    })
+  })
+
   describe("CRIT-22: reject_time_off_request non-admin blocked", () => {
     it("Employee cannot call reject_time_off_request", async () => {
       const { error } = await employeeInA.userClient.rpc("reject_time_off_request", {

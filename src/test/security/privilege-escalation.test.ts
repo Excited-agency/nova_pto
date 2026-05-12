@@ -38,7 +38,7 @@ describe.skipIf(skipIfNoServiceKey())("Privilege escalation attempts (ESCALATION
   })
 
   describe("ESCALATION-2: No public RPC exposes role change", () => {
-    it("No 'set_role' or 'promote_user' RPC exists", async () => {
+    it("Calling unknown privilege RPCs fails and employee role remains 'user'", async () => {
       const { error: e1 } = await employee.userClient.rpc("set_role" as any, {
         p_user_id: employee.userId,
         p_role: "admin",
@@ -49,6 +49,14 @@ describe.skipIf(skipIfNoServiceKey())("Privilege escalation attempts (ESCALATION
         user_id: employee.userId,
       })
       expect(e2).toBeTruthy()
+
+      // Critical: verify the role was not changed in DB by any side effect
+      const { data: db } = await serviceClient
+        .from("profiles")
+        .select("role")
+        .eq("id", employee.userId)
+        .single()
+      expect(db?.role).toBe("user")
     })
   })
 
