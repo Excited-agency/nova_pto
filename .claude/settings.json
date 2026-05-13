@@ -56,6 +56,34 @@
       "mcp__supabase__get_advisors"
     ]
   },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import sys,json\nd=json.load(sys.stdin)\nfp=d.get('file_path','')\nif fp.split('/')[-1].startswith('.env'):\n    print('Blocked: .env files are protected')\n    sys.exit(2)\n\""
+          },
+          {
+            "type": "command",
+            "command": "python3 -c \"import sys,json\nd=json.load(sys.stdin)\nfp=d.get('file_path','')\nif fp.endswith('package-lock.json'):\n    print('Blocked: package-lock.json must only be updated by npm install')\n    sys.exit(2)\n\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import sys,json,subprocess\nd=json.load(sys.stdin)\nfp=d.get('file_path','')\nif fp.endswith(('.ts','.tsx','.js','.jsx')):\n    r=subprocess.run(['npx','eslint',fp,'--max-warnings=0'],capture_output=True,text=True,cwd='/Users/yaroslavtokariev/Desktop/Excited/Figma-To-Code-Projects/Nova_pto')\n    if r.returncode!=0:\n        print((r.stdout+r.stderr)[:800])\n        sys.exit(1)\n\""
+          }
+        ]
+      }
+    ]
+  },
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "supabase"
@@ -63,7 +91,6 @@
   "enabledPlugins": {
     "figma@claude-plugins-official": true,
     "code-review@claude-plugins-official": true,
-    "github@claude-plugins-official": false,
     "frontend-design@claude-plugins-official": true,
     "security-guidance@claude-plugins-official": true
   }
