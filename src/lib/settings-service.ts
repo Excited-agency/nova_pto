@@ -15,7 +15,14 @@ export async function updateWorkspace(
 
 export async function updateProfile(
   profileId: string,
-  data: { first_name?: string; last_name?: string; avatar_url?: string | null }
+  data: {
+    first_name?: string
+    last_name?: string
+    avatar_url?: string | null
+    department_id?: string | null
+    location?: string
+    hire_date?: string
+  }
 ) {
   const { error } = await supabase
     .from("profiles")

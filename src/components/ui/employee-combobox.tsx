@@ -27,6 +27,7 @@ function EmployeeCombobox({
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
+  const isHoveringListRef = useRef(false)
 
   const selectedEmployee = useMemo(
     () => employees.find((e) => e.id === value),
@@ -58,16 +59,18 @@ function EmployeeCombobox({
     setOpen(false)
   }
 
+  function handleBlur() {
+    setTimeout(() => {
+      if (!isHoveringListRef.current) {
+        setOpen(false)
+      }
+    }, 200)
+  }
+
   function handleClear() {
     onChange?.(undefined)
     setQuery("")
     inputRef.current?.focus()
-  }
-
-  function handleBlur() {
-    setTimeout(() => {
-      setOpen(false)
-    }, 200)
   }
 
   // When selected, show the selected employee chip
@@ -138,7 +141,11 @@ function EmployeeCombobox({
         onFocusOutside={(e) => e.preventDefault()}
         onPointerDownOutside={(e) => e.preventDefault()}
       >
-        <div className="max-h-[160px] overflow-y-auto">
+        <div
+          className="max-h-[160px] overflow-y-auto"
+          onMouseEnter={() => { isHoveringListRef.current = true }}
+          onMouseLeave={() => { isHoveringListRef.current = false }}
+        >
         {results.map((employee) => {
           const name = getDisplayName(employee.first_name ?? undefined, employee.last_name ?? undefined)
           return (

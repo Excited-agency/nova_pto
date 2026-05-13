@@ -98,14 +98,16 @@ function Avatar({
           }}
         />
       )}
-      <AvatarPrimitive.Fallback
-        className={cn(
-          "flex size-full items-center justify-center bg-(--input) font-normal text-foreground",
-          fallbackTextClasses[size ?? "md"]
-        )}
-      >
-        {fallback}
-      </AvatarPrimitive.Fallback>
+      {!showImage && (
+        <span
+          className={cn(
+            "flex size-full items-center justify-center bg-(--input) font-normal text-foreground",
+            fallbackTextClasses[size ?? "md"]
+          )}
+        >
+          {fallback}
+        </span>
+      )}
     </AvatarPrimitive.Root>
   )
 }

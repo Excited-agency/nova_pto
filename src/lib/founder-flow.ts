@@ -44,7 +44,7 @@ export async function runFounderFlow(userId: string, email: string) {
     .insert({
       id: userId,
       workspace_id: workspaceId,
-      role: "admin",
+      role: "owner",
       email,
       status: "active",
     })

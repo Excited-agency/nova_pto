@@ -31,7 +31,7 @@ export interface IsolatedWorkspace {
   userId: string
   workspaceId: string
   email: string
-  role: "admin" | "user"
+  role: "admin" | "user" | "owner"
   userClient: ReturnType<typeof createClient>
   accessToken: string
 }
@@ -65,7 +65,7 @@ async function getSessionForUser(email: string): Promise<string> {
  * Uses magic-link flow (no password) to get a real JWT that enforces RLS.
  */
 export async function createIsolatedWorkspace(
-  role: "admin" | "user" = "admin"
+  role: "admin" | "user" | "owner" = "admin"
 ): Promise<IsolatedWorkspace> {
   if (!SERVICE_KEY) throw new Error("SERVICE_KEY not set — cannot run security tests")
 

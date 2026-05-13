@@ -26,6 +26,7 @@ interface RequestDetailsModalProps {
   categoryMap: Map<string, { name: string; emoji?: string | null }>
   canSeeComment?: boolean
   hideEmployee?: boolean
+  onEmployeeClick?: () => void
 }
 
 export function RequestDetailsModal({
@@ -35,6 +36,7 @@ export function RequestDetailsModal({
   categoryMap,
   canSeeComment,
   hideEmployee,
+  onEmployeeClick,
 }: RequestDetailsModalProps) {
   if (!request) return null
 
@@ -54,14 +56,32 @@ export function RequestDetailsModal({
         <div className="bg-secondary rounded-xl p-4 flex flex-col gap-3">
           {!hideEmployee && (
             <InfoRow label="Employee">
-              <Avatar
-                size="2xs"
-                shape="square"
-                src={request.employee_avatar_url}
-                alt={request.employee_name}
-                fallback={initials}
-              />
-              <span>{request.employee_name}</span>
+              {onEmployeeClick ? (
+                <button
+                  className="flex items-center gap-2 cursor-pointer hover:opacity-80"
+                  onClick={onEmployeeClick}
+                >
+                  <Avatar
+                    size="2xs"
+                    shape="square"
+                    src={request.employee_avatar_url}
+                    alt={request.employee_name}
+                    fallback={initials}
+                  />
+                  <span className="hover:underline">{request.employee_name}</span>
+                </button>
+              ) : (
+                <>
+                  <Avatar
+                    size="2xs"
+                    shape="square"
+                    src={request.employee_avatar_url}
+                    alt={request.employee_name}
+                    fallback={initials}
+                  />
+                  <span>{request.employee_name}</span>
+                </>
+              )}
             </InfoRow>
           )}
 

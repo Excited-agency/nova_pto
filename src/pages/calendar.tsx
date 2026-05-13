@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, startTransition } from "react"
+import { useNavigate } from "react-router-dom"
 import { Calendar, CalendarClock } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -39,8 +40,10 @@ export function CalendarPage() {
   const [detailsModalRequest, setDetailsModalRequest] = useState<TimeOffRequest | null>(null)
   const [downloading, setDownloading] = useState(false)
 
+  const navigate = useNavigate()
   const { workspace, profile } = useAuth()
   const isAdmin = profile?.role === "admin"
+  const canNavigate = isAdmin || profile?.role === "owner"
   const { data: requests = [] } = useTimeOffRequests()
   const { data: categories = [] } = useTimeOffCategories()
   const { data: holidays = [] } = useHolidays()
@@ -251,6 +254,9 @@ export function CalendarPage() {
         request={detailsModalRequest}
         categoryMap={categoryMap}
         canSeeComment={isAdmin || detailsModalRequest?.profile_id === profile?.id}
+        onEmployeeClick={canNavigate && detailsModalRequest
+          ? () => { setDetailsModalRequest(null); navigate(`/employees/${detailsModalRequest.profile_id}`) }
+          : undefined}
       />
     </div>
   )

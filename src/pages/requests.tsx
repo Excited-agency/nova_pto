@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, startTransition } from "react"
+import { useNavigate } from "react-router-dom"
 import { CalendarClock, CircleCheck, CircleX, ListCheck, ListX, Search } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -40,7 +41,9 @@ export function RequestsPage() {
   const [pageSize, setPageSize] = useState(10)
   const [currentPage, setCurrentPage] = useState(1)
 
-  const { workspace } = useAuth()
+  const navigate = useNavigate()
+  const { workspace, profile } = useAuth()
+  const canNavigate = profile?.role === "admin" || profile?.role === "owner"
   const { data: requests = [], isLoading, isError, refetch } = useTimeOffRequests()
   const { data: categories = [] } = useTimeOffCategories()
 
@@ -346,6 +349,9 @@ export function RequestsPage() {
         onOpenChange={(open) => { if (!open) setDetailsModalRequest(null) }}
         request={detailsModalRequest}
         categoryMap={categoryMap}
+        onEmployeeClick={canNavigate && detailsModalRequest
+          ? () => { setDetailsModalRequest(null); navigate(`/employees/${detailsModalRequest.profile_id}`) }
+          : undefined}
       />
     </div>
   )

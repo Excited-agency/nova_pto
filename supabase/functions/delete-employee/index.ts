@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
     // Verify employee belongs to caller's workspace
     const { data: employeeProfile } = await adminClient
       .from("profiles")
-      .select("id, workspace_id")
+      .select("id, workspace_id, role")
       .eq("id", employeeId)
       .eq("workspace_id", callerProfile.workspace_id)
       .maybeSingle()
@@ -72,6 +72,13 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ error: "Employee not found in this workspace" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    if (employeeProfile.role === "owner") {
+      return new Response(
+        JSON.stringify({ error: "Cannot delete workspace owner" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
 

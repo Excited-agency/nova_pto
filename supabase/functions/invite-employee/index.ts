@@ -84,6 +84,13 @@ Deno.serve(async (req) => {
       )
     }
 
+    if (role === "owner") {
+      return new Response(
+        JSON.stringify({ error: "Cannot assign owner role" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
     const validRoles = ["user", "admin"]
     if (role && !validRoles.includes(role)) {
       return new Response(

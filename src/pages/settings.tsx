@@ -25,6 +25,15 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useDepartments } from "@/hooks/use-departments"
 import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select"
+import { LocationCombobox } from "@/components/ui/location-combobox"
+import { DatePicker } from "@/components/ui/date-picker"
+import {
   fetchDepartments,
   createDepartment,
   updateDepartment,
@@ -53,6 +62,9 @@ interface InitialValues {
   logoUrl: string | null
   avatarUrl: string | null
   departments: DepartmentRow[]
+  departmentId: string
+  location: string
+  hireDate: Date | undefined
 }
 
 export function SettingsPage() {
@@ -73,6 +85,9 @@ export function SettingsPage() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [logoRemoved, setLogoRemoved] = useState(false)
   const [avatarRemoved, setAvatarRemoved] = useState(false)
+  const [departmentId, setDepartmentId] = useState<string>("")
+  const [location, setLocation] = useState<string>("")
+  const [hireDate, setHireDate] = useState<Date | undefined>(undefined)
   const [departments, setDepartments] = useState<DepartmentRow[]>([])
   const [deletedDepartmentIds, setDeletedDepartmentIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
@@ -97,12 +112,18 @@ export function SettingsPage() {
     const lName = profile.last_name || ""
     const lUrl = workspace.logo_url || null
     const aUrl = profile.avatar_url || null
+    const deptId = profile.department_id ?? ""
+    const loc = profile.location ?? ""
+    const hDate = profile.hire_date ? new Date(profile.hire_date) : undefined
 
     setWorkspaceName(wName)
     setFirstName(fName)
     setLastName(lName)
     setLogoUrl(lUrl)
     setAvatarUrl(aUrl)
+    setDepartmentId(deptId)
+    setLocation(loc)
+    setHireDate(hDate)
 
     const rows = cachedDepartments.map((d: Department) => ({ id: d.id, name: d.name, isNew: false }))
     setDepartments(rows)
@@ -113,6 +134,9 @@ export function SettingsPage() {
       logoUrl: lUrl,
       avatarUrl: aUrl,
       departments: rows,
+      departmentId: deptId,
+      location: loc,
+      hireDate: hDate,
     })
   }, [workspace?.id, profile?.id, cachedDepartments])
 
@@ -122,6 +146,9 @@ export function SettingsPage() {
     if (workspaceName !== initialValues.workspaceName) return true
     if (firstName !== initialValues.firstName) return true
     if (lastName !== initialValues.lastName) return true
+    if (departmentId !== initialValues.departmentId) return true
+    if (location !== initialValues.location) return true
+    if ((hireDate?.getTime() ?? undefined) !== (initialValues.hireDate?.getTime() ?? undefined)) return true
     // Image dirty: new file staged, OR removing an existing image
     if (logoFile !== null || (logoRemoved && initialValues.logoUrl !== null)) return true
     if (avatarFile !== null || (avatarRemoved && initialValues.avatarUrl !== null)) return true
@@ -134,7 +161,7 @@ export function SettingsPage() {
       if (original && original.name !== dept.name) return true
     }
     return false
-  }, [workspaceName, firstName, lastName, logoFile, avatarFile, logoRemoved, avatarRemoved, departments, deletedDepartmentIds, initialValues])
+  }, [workspaceName, firstName, lastName, departmentId, location, hireDate, logoFile, avatarFile, logoRemoved, avatarRemoved, departments, deletedDepartmentIds, initialValues])
 
   // Navigation guard (sidebar clicks)
   useEffect(() => {
@@ -244,6 +271,9 @@ export function SettingsPage() {
     setWorkspaceName(initialValues.workspaceName)
     setFirstName(initialValues.firstName)
     setLastName(initialValues.lastName)
+    setDepartmentId(initialValues.departmentId)
+    setLocation(initialValues.location)
+    setHireDate(initialValues.hireDate)
     setLogoUrl(initialValues.logoUrl)
     setAvatarUrl(initialValues.avatarUrl)
     setLogoFile(null)
@@ -326,6 +356,9 @@ export function SettingsPage() {
         first_name: firstName,
         last_name: lastName,
         avatar_url: newAvatarUrl,
+        department_id: departmentId || null,
+        location: location || undefined,
+        hire_date: hireDate ? hireDate.toISOString().split('T')[0] : undefined,
       })
 
       // 5. Handle departments
@@ -378,6 +411,9 @@ export function SettingsPage() {
         logoUrl: newLogoUrl,
         avatarUrl: newAvatarUrl,
         departments: rows,
+        departmentId,
+        location,
+        hireDate,
       })
       addToast({ title: "Settings saved" })
     } catch (err) {
@@ -506,6 +542,30 @@ export function SettingsPage() {
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
                 />
+              </Field>
+            </div>
+
+            {/* Department */}
+            <Field label="Department">
+              <Select value={departmentId} onValueChange={setDepartmentId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select department" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cachedDepartments?.map((d) => (
+                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+
+            {/* Start date + Location */}
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Start date">
+                <DatePicker value={hireDate} onChange={setHireDate} />
+              </Field>
+              <Field label="Location">
+                <LocationCombobox value={location} onChange={setLocation} />
               </Field>
             </div>
 

@@ -33,6 +33,7 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog"
 
+import { useAuth } from "@/hooks/use-auth"
 import { useEmployee, useEmployeeStatusMutation, useDeleteEmployeeMutation } from "@/hooks/use-employees"
 import { useEmployeeBalances, useUpdateEmployeeBalancesMutation } from "@/hooks/use-time-off-requests"
 import { useTimeOffCategories } from "@/hooks/use-time-off-categories"
@@ -46,6 +47,7 @@ export function EmployeeDetailsPage() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
 
+  const { user, profile: viewerProfile } = useAuth()
   const { data: employee, isLoading, isError } = useEmployee(id)
   const { data: categories = [] } = useTimeOffCategories()
   const { data: balances = [] } = useEmployeeBalances(id)
@@ -210,6 +212,11 @@ export function EmployeeDetailsPage() {
   if (!emp) return null
 
   const isActive = emp.status === "active"
+  const isViewedEmployeeOwner = emp.role === "owner"
+  const isSelfView = user?.id === emp.id
+  const viewerIsOwner = viewerProfile?.role === "owner"
+  // Admin can't manage the owner; owner can manage anyone
+  const canManage = !(isViewedEmployeeOwner && !viewerIsOwner)
 
   return (
     <div className="flex flex-col size-full">
@@ -231,8 +238,8 @@ export function EmployeeDetailsPage() {
                 <p className="text-lg font-semibold leading-7 tracking-tight text-foreground">
                   {displayName || "—"}
                 </p>
-                <Badge variant="secondary">
-                  {emp.role === "admin" ? "Admin" : "User"}
+                <Badge variant={emp.role === "owner" ? "default" : "secondary"}>
+                  {emp.role === "owner" ? "Owner" : emp.role === "admin" ? "Admin" : "User"}
                 </Badge>
               </div>
               <p className="text-sm leading-5 tracking-tight text-muted-foreground">
@@ -241,112 +248,178 @@ export function EmployeeDetailsPage() {
             </div>
 
             {/* Actions dropdown */}
-            <Popover open={actionsOpen} onOpenChange={setActionsOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="default">
-                  Actions
-                  <ChevronDown className="size-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="p-0 border-0 shadow-none">
-                <ComboboxMenu
-                  groups={
-                    isActive
-                      ? [
-                          {
-                            items: [
+            {canManage && !isSelfView && (
+              <Popover open={actionsOpen} onOpenChange={setActionsOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="default">
+                    Actions
+                    <ChevronDown className="size-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="p-0 border-0 shadow-none">
+                  <ComboboxMenu
+                    groups={
+                      isSelfView
+                        ? isActive
+                          ? [
                               {
-                                type: "icon",
-                                icon: <PencilLine className="size-4" />,
-                                label: "Edit details",
-                                onClick: () => {
-                                  setActionsOpen(false)
-                                  navigate(`/employees/${id}/edit`, { state: { from: "details" } })
-                                },
+                                items: [
+                                  {
+                                    type: "icon",
+                                    icon: <UserMinus className="size-4" />,
+                                    label: "Deactivate",
+                                    onClick: () => {
+                                      setActionsOpen(false)
+                                      handleDeactivate()
+                                    },
+                                  },
+                                ],
                               },
                               {
-                                type: "icon",
-                                icon: <UserMinus className="size-4" />,
-                                label: "Deactivate",
-                                onClick: () => {
-                                  setActionsOpen(false)
-                                  handleDeactivate()
-                                },
+                                items: [
+                                  {
+                                    type: "icon",
+                                    variant: "destructive",
+                                    icon: <Trash2 className="size-4" />,
+                                    label: "Delete employee",
+                                    onClick: () => {
+                                      setActionsOpen(false)
+                                      setDeleteDialogOpen(true)
+                                    },
+                                  },
+                                ],
                               },
-                            ],
-                          },
-                          {
-                            items: [
+                            ]
+                          : [
                               {
-                                type: "icon",
-                                variant: "destructive",
-                                icon: <Trash2 className="size-4" />,
-                                label: "Delete employee",
-                                onClick: () => {
-                                  setActionsOpen(false)
-                                  setDeleteDialogOpen(true)
-                                },
+                                items: [
+                                  {
+                                    type: "icon",
+                                    icon: <UserCheck className="size-4" />,
+                                    label: "Activate",
+                                    onClick: () => {
+                                      setActionsOpen(false)
+                                      handleActivate()
+                                    },
+                                  },
+                                ],
                               },
-                            ],
-                          },
-                        ]
-                      : [
-                          {
-                            items: [
                               {
-                                type: "icon",
-                                icon: <UserCheck className="size-4" />,
-                                label: "Activate",
-                                onClick: () => {
-                                  setActionsOpen(false)
-                                  handleActivate()
-                                },
+                                items: [
+                                  {
+                                    type: "icon",
+                                    variant: "destructive",
+                                    icon: <Trash2 className="size-4" />,
+                                    label: "Delete employee",
+                                    onClick: () => {
+                                      setActionsOpen(false)
+                                      setDeleteDialogOpen(true)
+                                    },
+                                  },
+                                ],
                               },
-                            ],
-                          },
-                          {
-                            items: [
+                            ]
+                        : isActive
+                          ? [
                               {
-                                type: "icon",
-                                variant: "destructive",
-                                icon: <Trash2 className="size-4" />,
-                                label: "Delete employee",
-                                onClick: () => {
-                                  setActionsOpen(false)
-                                  setDeleteDialogOpen(true)
-                                },
+                                items: [
+                                  {
+                                    type: "icon",
+                                    icon: <PencilLine className="size-4" />,
+                                    label: "Edit details",
+                                    onClick: () => {
+                                      setActionsOpen(false)
+                                      navigate(`/employees/${id}/edit`, { state: { from: "details" } })
+                                    },
+                                  },
+                                  {
+                                    type: "icon",
+                                    icon: <UserMinus className="size-4" />,
+                                    label: "Deactivate",
+                                    onClick: () => {
+                                      setActionsOpen(false)
+                                      handleDeactivate()
+                                    },
+                                  },
+                                ],
                               },
-                            ],
-                          },
-                        ]
-                  }
-                />
-              </PopoverContent>
-            </Popover>
+                              {
+                                items: [
+                                  {
+                                    type: "icon",
+                                    variant: "destructive",
+                                    icon: <Trash2 className="size-4" />,
+                                    label: "Delete employee",
+                                    onClick: () => {
+                                      setActionsOpen(false)
+                                      setDeleteDialogOpen(true)
+                                    },
+                                  },
+                                ],
+                              },
+                            ]
+                          : [
+                              {
+                                items: [
+                                  {
+                                    type: "icon",
+                                    icon: <UserCheck className="size-4" />,
+                                    label: "Activate",
+                                    onClick: () => {
+                                      setActionsOpen(false)
+                                      handleActivate()
+                                    },
+                                  },
+                                ],
+                              },
+                              {
+                                items: [
+                                  {
+                                    type: "icon",
+                                    variant: "destructive",
+                                    icon: <Trash2 className="size-4" />,
+                                    label: "Delete employee",
+                                    onClick: () => {
+                                      setActionsOpen(false)
+                                      setDeleteDialogOpen(true)
+                                    },
+                                  },
+                                ],
+                              },
+                            ]
+                    }
+                  />
+                </PopoverContent>
+              </Popover>
+            )}
           </div>
 
-          <div className="w-[600px]"><Separator /></div>
+          {!isSelfView && (
+            <>
+              <div className="w-[600px]"><Separator /></div>
 
-          {/* Overview section */}
-          <div className="flex flex-col gap-4 w-[600px]">
-            <p className="text-base font-semibold leading-6 tracking-tight text-foreground">
-              Overview
-            </p>
-            <div className="flex flex-col gap-3 text-sm font-medium leading-5 tracking-tight">
-              <div className="flex gap-3">
-                <p className="w-[294px] text-muted-foreground truncate">Department</p>
-                <p className="text-foreground truncate">{departmentName}</p>
+              {/* Overview section */}
+              <div className="flex flex-col gap-4 w-[600px]">
+                <p className="text-base font-semibold leading-6 tracking-tight text-foreground">
+                  Overview
+                </p>
+                <div className="flex flex-col gap-3 text-sm font-medium leading-5 tracking-tight">
+                  <div className="flex gap-3">
+                    <p className="w-[294px] text-muted-foreground truncate">Department</p>
+                    <p className="text-foreground truncate">{departmentName}</p>
+                  </div>
+                  <div className="flex gap-3">
+                    <p className="w-[294px] text-muted-foreground truncate">Location</p>
+                    <p className="text-foreground truncate">{emp.location ?? "—"}</p>
+                  </div>
+                  <div className="flex gap-3">
+                    <p className="w-[294px] text-muted-foreground truncate">Hire date</p>
+                    <p className="text-foreground truncate">{formatDate(emp.hire_date)}</p>
+                  </div>
+                </div>
               </div>
-              <div className="flex gap-3">
-                <p className="w-[294px] text-muted-foreground truncate">Location</p>
-                <p className="text-foreground truncate">{emp.location ?? "—"}</p>
-              </div>
-              <div className="flex gap-3">
-                <p className="w-[294px] text-muted-foreground truncate">Hire date</p>
-                <p className="text-foreground truncate">{formatDate(emp.hire_date)}</p>
-              </div>
-            </div>
-          </div>
+            </>
+          )}
 
           <div className="w-[600px]"><Separator /></div>
 
@@ -358,11 +431,8 @@ export function EmployeeDetailsPage() {
             <div className="flex flex-col gap-3">
               {activeCategories.map((cat) => {
                 const isUnlimited = cat.accrual_method === "unlimited"
-                return (
-                  <div
-                    key={cat.id}
-                    className="flex items-center gap-3"
-                  >
+                return canManage ? (
+                  <div key={cat.id} className="flex items-center gap-3">
                     <p className="flex-1 min-w-0 text-sm font-medium leading-5 tracking-tight text-foreground truncate">
                       {cat.name} {cat.emoji ?? ""}
                     </p>
@@ -376,28 +446,39 @@ export function EmployeeDetailsPage() {
                       />
                     </div>
                   </div>
+                ) : (
+                  <div key={cat.id} className="flex gap-3">
+                    <p className="w-[294px] text-sm font-medium leading-5 tracking-tight text-foreground truncate">
+                      {cat.name} {cat.emoji ?? ""}
+                    </p>
+                    <p className="text-sm font-medium leading-5 tracking-tight text-foreground">
+                      {isUnlimited ? "Unlimited" : (balanceMap.get(cat.id) ?? 0)}
+                    </p>
+                  </div>
                 )
               })}
             </div>
           </div>
 
           {/* Action buttons */}
-          <div className="flex items-center justify-between pt-3 w-[600px]">
-            <Button
-              variant="secondary"
-              disabled={!isDirty}
-              onClick={() => navigate("/employees")}
-            >
-              Cancel
-            </Button>
-            <Button
-              disabled={!isDirty}
-              loading={updateBalancesMutation.isPending}
-              onClick={handleSave}
-            >
-              Save changes
-            </Button>
-          </div>
+          {canManage && (
+            <div className="flex items-center justify-between pt-3 w-[600px]">
+              <Button
+                variant="secondary"
+                disabled={!isDirty}
+                onClick={() => navigate("/employees")}
+              >
+                Cancel
+              </Button>
+              <Button
+                disabled={!isDirty}
+                loading={updateBalancesMutation.isPending}
+                onClick={handleSave}
+              >
+                Save changes
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 

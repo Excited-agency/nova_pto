@@ -69,6 +69,8 @@ interface EmployeeRowProps {
   isSelected: boolean
   departmentName: string
   debouncedSearch: string
+  viewerIsOwner: boolean
+  isSelf: boolean
   onToggleSelect: (id: string, checked: boolean) => void
   onNavigateToDetails: (id: string) => void
   onNavigateToEdit: (id: string) => void
@@ -83,6 +85,8 @@ const EmployeeRow = memo(function EmployeeRow({
   isSelected,
   departmentName,
   debouncedSearch,
+  viewerIsOwner,
+  isSelf,
   onToggleSelect,
   onNavigateToDetails,
   onNavigateToEdit,
@@ -141,8 +145,8 @@ const EmployeeRow = memo(function EmployeeRow({
         size="md"
         className="w-[100px]"
         badgeNode={
-          <Badge variant="secondary">
-            {emp.role === "admin" ? "Admin" : "User"}
+          <Badge variant={emp.role === "owner" ? "default" : "secondary"}>
+            {emp.role === "owner" ? "Owner" : emp.role === "admin" ? "Admin" : "User"}
           </Badge>
         }
         border={!isLast}
@@ -174,7 +178,7 @@ const EmployeeRow = memo(function EmployeeRow({
           <PopoverContent align="end" className="p-0 border-0 shadow-none">
             <ComboboxMenu
               groups={
-                emp.status === "active"
+                (emp.role === "owner" && !viewerIsOwner) || isSelf
                   ? [
                       {
                         items: [
@@ -187,70 +191,86 @@ const EmployeeRow = memo(function EmployeeRow({
                               onNavigateToDetails(emp.id)
                             },
                           },
-                          {
-                            type: "icon",
-                            icon: <PencilLine className="size-4" />,
-                            label: "Edit details",
-                            onClick: () => {
-                              setPopoverOpen(false)
-                              onNavigateToEdit(emp.id)
-                            },
-                          },
-                          {
-                            type: "icon",
-                            icon: <UserMinus className="size-4" />,
-                            label: "Deactivate",
-                            onClick: () => {
-                              setPopoverOpen(false)
-                              onDeactivate(emp)
-                            },
-                          },
-                        ],
-                      },
-                      {
-                        items: [
-                          {
-                            type: "icon",
-                            variant: "destructive",
-                            icon: <Trash2 className="size-4" />,
-                            label: "Delete employee",
-                            onClick: () => {
-                              setPopoverOpen(false)
-                              onDelete(emp)
-                            },
-                          },
                         ],
                       },
                     ]
-                  : [
-                      {
-                        items: [
-                          {
-                            type: "icon",
-                            icon: <UserCheck className="size-4" />,
-                            label: "Activate",
-                            onClick: () => {
-                              setPopoverOpen(false)
-                              onActivate(emp)
+                  : emp.status === "active"
+                    ? [
+                        {
+                          items: [
+                            {
+                              type: "icon",
+                              icon: <Eye className="size-4" />,
+                              label: "View details",
+                              onClick: () => {
+                                setPopoverOpen(false)
+                                onNavigateToDetails(emp.id)
+                              },
                             },
-                          },
-                        ],
-                      },
-                      {
-                        items: [
-                          {
-                            type: "icon",
-                            variant: "destructive",
-                            icon: <Trash2 className="size-4" />,
-                            label: "Delete employee",
-                            onClick: () => {
-                              setPopoverOpen(false)
-                              onDelete(emp)
+                            ...(!isSelf ? [{
+                              type: "icon" as const,
+                              icon: <PencilLine className="size-4" />,
+                              label: "Edit details",
+                              onClick: () => {
+                                setPopoverOpen(false)
+                                onNavigateToEdit(emp.id)
+                              },
+                            }] : []),
+                            {
+                              type: "icon",
+                              icon: <UserMinus className="size-4" />,
+                              label: "Deactivate",
+                              onClick: () => {
+                                setPopoverOpen(false)
+                                onDeactivate(emp)
+                              },
                             },
-                          },
-                        ],
-                      },
-                    ]
+                          ],
+                        },
+                        {
+                          items: [
+                            {
+                              type: "icon",
+                              variant: "destructive",
+                              icon: <Trash2 className="size-4" />,
+                              label: "Delete employee",
+                              onClick: () => {
+                                setPopoverOpen(false)
+                                onDelete(emp)
+                              },
+                            },
+                          ],
+                        },
+                      ]
+                    : [
+                        {
+                          items: [
+                            {
+                              type: "icon",
+                              icon: <UserCheck className="size-4" />,
+                              label: "Activate",
+                              onClick: () => {
+                                setPopoverOpen(false)
+                                onActivate(emp)
+                              },
+                            },
+                          ],
+                        },
+                        {
+                          items: [
+                            {
+                              type: "icon",
+                              variant: "destructive",
+                              icon: <Trash2 className="size-4" />,
+                              label: "Delete employee",
+                              onClick: () => {
+                                setPopoverOpen(false)
+                                onDelete(emp)
+                              },
+                            },
+                          ],
+                        },
+                      ]
               }
             />
           </PopoverContent>
@@ -302,12 +322,9 @@ export function EmployeesPage() {
     return map
   }, [departments])
 
-  // Filter out workspace owner and apply search
+  // Apply search filter
   const filteredEmployees = useMemo(() => {
     let list = employees as Profile[]
-    if (currentProfile) {
-      list = list.filter((e) => e.id !== currentProfile.id)
-    }
     if (!debouncedSearch.trim()) return list
     const q = debouncedSearch.toLowerCase()
     return list.filter(
@@ -315,17 +332,9 @@ export function EmployeesPage() {
         getDisplayName(e.first_name, e.last_name).toLowerCase().includes(q) ||
         e.email.toLowerCase().includes(q)
     )
-  }, [employees, debouncedSearch, currentProfile])
+  }, [employees, debouncedSearch])
 
-  // Adjust counts to exclude workspace owner
-  const adjustedCounts = useMemo(() => {
-    if (!currentProfile) return counts
-    const adjusted = { ...counts }
-    if (adjusted[currentProfile.status] > 0) {
-      adjusted[currentProfile.status] -= 1
-    }
-    return adjusted
-  }, [counts, currentProfile])
+  const adjustedCounts = counts
 
   useEffect(() => {
     setCurrentPage(1)
@@ -658,6 +667,8 @@ export function EmployeesPage() {
                   isSelected={selectedIds.has(emp.id)}
                   departmentName={emp.department_id ? departmentMap.get(emp.department_id) ?? "—" : "—"}
                   debouncedSearch={debouncedSearch}
+                  viewerIsOwner={currentProfile?.role === "owner"}
+                  isSelf={emp.id === currentProfile?.id}
                   onToggleSelect={handleToggleSelect}
                   onNavigateToDetails={handleNavigateToDetails}
                   onNavigateToEdit={handleNavigateToEdit}

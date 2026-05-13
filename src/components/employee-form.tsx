@@ -338,24 +338,30 @@ export function EmployeeForm({
 
         {/* Role */}
         <Field label="Role">
-          <RadioGroup
-            value={role}
-            onValueChange={setRole}
-            className="w-full grid grid-cols-2 gap-3"
-          >
-            <RadioGroupOption
-              value="user"
-              label="User"
-              description="Request and track personal time off"
-              variant="card"
-            />
-            <RadioGroupOption
-              value="admin"
-              label="Admin"
-              description="Manage team and workspace settings"
-              variant="card"
-            />
-          </RadioGroup>
+          {role === "owner" ? (
+            <div className="flex items-center h-10 px-3 rounded-lg border border-border bg-muted/50">
+              <span className="text-sm font-medium text-foreground">Owner</span>
+            </div>
+          ) : (
+            <RadioGroup
+              value={role}
+              onValueChange={setRole}
+              className="w-full grid grid-cols-2 gap-3"
+            >
+              <RadioGroupOption
+                value="user"
+                label="User"
+                description="Request and track personal time off"
+                variant="card"
+              />
+              <RadioGroupOption
+                value="admin"
+                label="Admin"
+                description="Manage team and workspace settings"
+                variant="card"
+              />
+            </RadioGroup>
+          )}
         </Field>
 
         {/* Start date / Location */}
