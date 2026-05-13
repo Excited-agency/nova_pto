@@ -49,6 +49,7 @@ import {
   useEmployeeCounts,
   useEmployeeStatusMutation,
   useDeleteEmployeeMutation,
+  usePurgeEmployeeMutation,
   useBulkEmployeeStatusMutation,
 } from "@/hooks/use-employees"
 import { useDepartments } from "@/hooks/use-departments"
@@ -271,8 +272,10 @@ export function EmployeesPage() {
   const [pageSize, setPageSize] = useState(10)
   const [currentPage, setCurrentPage] = useState(1)
 
-  // Delete dialog state
+  // Delete dialog state (Active/Inactive → hard-delete auth + soft-delete profile)
   const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null)
+  // Purge dialog state (Deleted tab → remove profile row entirely)
+  const [purgeTarget, setPurgeTarget] = useState<Profile | null>(null)
 
   // Query hooks
   const { data: employees = [], isLoading: loading, isError, refetch } = useEmployeeList(activeTab)
@@ -280,6 +283,7 @@ export function EmployeesPage() {
   const { data: departments = [] } = useDepartments()
   const statusMutation = useEmployeeStatusMutation()
   const deleteMutation = useDeleteEmployeeMutation()
+  const purgeMutation = usePurgeEmployeeMutation()
   const bulkMutation = useBulkEmployeeStatusMutation()
   const queryClient = useQueryClient()
 
@@ -405,12 +409,34 @@ export function EmployeesPage() {
       onSuccess: () => {
         addToast({
           title: "Employee deleted",
-          description: `${getDisplayName(deleteTarget.first_name, deleteTarget.last_name) || deleteTarget.email} has been deleted`,
+          description: `${getDisplayName(deleteTarget.first_name, deleteTarget.last_name) || deleteTarget.email} has been deleted and their email has been freed.`,
         })
         setDeleteTarget(null)
       },
     })
   }, [deleteTarget, deleteMutation])
+
+  const handlePurgeConfirm = useCallback(() => {
+    if (!purgeTarget) return
+    purgeMutation.mutate(purgeTarget.id, {
+      onSuccess: () => {
+        addToast({
+          title: "Record removed",
+          description: `${getDisplayName(purgeTarget.first_name, purgeTarget.last_name) || purgeTarget.email} has been removed from the deleted list.`,
+        })
+        setPurgeTarget(null)
+      },
+    })
+  }, [purgeTarget, purgeMutation])
+
+  // Routes to delete (Active/Inactive) or purge (Deleted) based on employee status
+  const handleDelete = useCallback((emp: Profile) => {
+    if (emp.status === "deleted") {
+      setPurgeTarget(emp)
+    } else {
+      setDeleteTarget(emp)
+    }
+  }, [])
 
   const handleClearSelection = useCallback(() => setSelectedIds(new Set()), [])
 
@@ -637,7 +663,7 @@ export function EmployeesPage() {
                   onNavigateToEdit={handleNavigateToEdit}
                   onDeactivate={handleDeactivate}
                   onActivate={handleActivate}
-                  onDelete={setDeleteTarget}
+                  onDelete={handleDelete}
                 />
               ))}
             </div>
@@ -742,6 +768,35 @@ export function EmployeesPage() {
               onClick={handleDeleteConfirm}
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      {/* Purge confirmation dialog (Deleted tab) */}
+      <AlertDialog
+        open={!!purgeTarget}
+        onOpenChange={(open) => {
+          if (!open) setPurgeTarget(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove deleted record</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove{" "}
+              {purgeTarget
+                ? getDisplayName(purgeTarget.first_name, purgeTarget.last_name) || purgeTarget.email
+                : ""}
+              {" "}from your deleted employees list. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handlePurgeConfirm}
+            >
+              Remove
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

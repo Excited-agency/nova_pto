@@ -123,7 +123,7 @@ Defined in `src/App.tsx`. All page components are lazy-loaded via `React.lazy` +
 
 ### Services
 
-- `src/lib/employee-service.ts` — `fetchEmployees`, `fetchEmployeeCounts`, `fetchEmployee`, `updateEmployee`, `updateEmployeeStatus`, `bulkUpdateEmployeeStatus`, `inviteEmployee` (calls the `invite-employee` Edge Function)
+- `src/lib/employee-service.ts` — `fetchEmployees`, `fetchEmployeeCounts`, `fetchEmployee`, `updateEmployee`, `updateEmployeeStatus`, `bulkUpdateEmployeeStatus`, `inviteEmployee` (calls the `invite-employee` Edge Function), `deleteEmployee` / `purgeEmployee` (call the `delete-employee` Edge Function with `purge: false / true`)
 - `src/lib/settings-service.ts` — `fetchDepartments`, `createDepartment`, `updateDepartment`, `deleteDepartment`, `updateWorkspace`, `updateProfile`, `uploadImage`, `removeImage`
 - `src/lib/time-off-request-service.ts` — fetch/create/approve/reject time-off requests; `fetchEmployeeBalance`, `fetchEmployeeBalances`
 - `src/lib/time-off-category-service.ts` — category CRUD + `updateCategorySortOrder`
@@ -150,7 +150,7 @@ Defined in `src/App.tsx`. All page components are lazy-loaded via `React.lazy` +
 All in `src/hooks/`. Each wraps one domain's service calls in TanStack Query:
 
 - `use-auth.ts` — simple `useContext(AuthContext)` consumer
-- `use-employees.ts` — `useEmployeeList`, `useEmployeeCounts`, `useEmployee`, `useEmployeeStatusMutation`, `useUpdateEmployeeMutation`, `useInviteEmployeeMutation`, `useActiveEmployeesForCombobox`
+- `use-employees.ts` — `useEmployeeList`, `useEmployeeCounts`, `useEmployee`, `useEmployeeStatusMutation`, `useBulkEmployeeStatusMutation`, `useUpdateEmployeeMutation`, `useInviteEmployeeMutation`, `useDeleteEmployeeMutation`, `usePurgeEmployeeMutation`
 - `use-time-off-requests.ts` — `useTimeOffRequests`, `useMyTimeOffRequests`, `useEmployeeBalance`, `useEmployeeBalances`, `useApproveTimeOffRequestMutation`, `useRejectTimeOffRequestMutation`, `useSubmitTimeOffRequestMutation`, `useCreateTimeOffRecordMutation`
 - `use-time-off-categories.ts` — category CRUD queries/mutations
 - `use-departments.ts` — department CRUD queries/mutations
@@ -162,6 +162,7 @@ All in `src/hooks/`. Each wraps one domain's service calls in TanStack Query:
 ### Supabase Edge Functions
 
 - `supabase/functions/invite-employee/` — Deno function: verifies caller JWT + admin role, creates Supabase auth user via admin API, inserts `profiles` row.
+- `supabase/functions/delete-employee/` — soft-deletes or permanently purges a single employee (admin-only, verifies JWT + role)
 - `supabase/functions/delete-workspace/` — workspace deletion (owner-only, cascades all workspace data)
 - `supabase/functions/slack-oauth/` — handles Slack OAuth callback, stores bot token in `slack_installations`
 - `supabase/functions/slack-events/` — receives Slack event payloads (button clicks, etc.), uses `slack_interactions` for idempotency
@@ -187,7 +188,7 @@ Custom tokens beyond shadcn defaults:
 ### Component conventions
 
 - UI primitives live in `src/components/ui/`. These are custom components (not auto-generated shadcn CLI output) built to match Figma specs exactly. Notable groups:
-  - **Combobox system**: `combobox-menu.tsx`, `combobox-search-field.tsx`, `combobox-menu-item.tsx`, `combobox-menu-label.tsx` — low-level primitives. `location-combobox.tsx` composes these with a static `src/data/cities.json` dataset (~500 entries, `{ name, country }`) and `src/data/countries.ts` (`Country` interface + `countries` array with codes, names, and emoji flags) for the employee location field. `employee-combobox.tsx` uses live data from `useActiveEmployeesForCombobox`.
+  - **Combobox system**: `combobox-menu.tsx`, `combobox-search-field.tsx`, `combobox-menu-item.tsx`, `combobox-menu-label.tsx` — low-level primitives. `location-combobox.tsx` composes these with a static `src/data/cities.json` dataset (~500 entries, `{ name, country }`) and `src/data/countries.ts` (`Country` interface + `countries` array with codes, names, and emoji flags) for the employee location field. `employee-combobox.tsx` is data-agnostic — it receives an `employees: ComboboxEmployee[]` prop (type defined in `time-off-request-service.ts`).
   - **Data table**: `data-table-header-cell.tsx`, `data-table-cell.tsx`, `data-table-pagination.tsx` — used in Requests and Employees pages.
   - **Calendar primitives**: `calendar-cell.tsx`, `calendar-day-button.tsx`, `calendar-event-slot.tsx`, `calendar-header.tsx`, `calendar-arrow-button.tsx` — low-level atoms. Higher-level composites live in `src/components/calendar/`: `CalendarMonthGrid`, `CalendarWeekRow`, `CalendarEventBar`, `CalendarFilters` — all built but not yet wired to a live calendar page.
 - Radix primitives come from the unified `radix-ui` package (e.g. `import { Tabs, Slot } from "radix-ui"`), **not** individual `@radix-ui/*` packages.

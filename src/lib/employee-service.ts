@@ -64,6 +64,47 @@ export interface InviteEmployeeData {
   avatar_url?: string | null
 }
 
+async function callDeleteEmployeeFunction(employeeId: string, purge: boolean): Promise<void> {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const token = sessionData.session?.access_token
+
+  if (!token) throw new Error("Not authenticated")
+
+  const res = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-employee`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ employeeId, purge }),
+    }
+  )
+
+  const text = await res.text()
+  let body: Record<string, unknown> = {}
+  try {
+    body = JSON.parse(text)
+  } catch {
+    // not JSON
+  }
+
+  if (!res.ok || body.error) {
+    const message = (body.error ?? body.msg ?? body.message ?? text) || `Request failed (${res.status})`
+    throw new Error(String(message))
+  }
+}
+
+export async function deleteEmployee(employeeId: string): Promise<void> {
+  return callDeleteEmployeeFunction(employeeId, false)
+}
+
+export async function purgeEmployee(employeeId: string): Promise<void> {
+  return callDeleteEmployeeFunction(employeeId, true)
+}
+
 export async function inviteEmployee(data: InviteEmployeeData) {
   const { getSiteUrl } = await import("@/lib/site-url")
   const { data: sessionData } = await supabase.auth.getSession()

@@ -7,6 +7,8 @@ import {
   updateEmployee,
   updateEmployeeStatus,
   bulkUpdateEmployeeStatus,
+  deleteEmployee,
+  purgeEmployee,
   inviteEmployee,
   type UpdateEmployeeData,
   type InviteEmployeeData,
@@ -70,12 +72,25 @@ export function useDeleteEmployeeMutation() {
   const { workspace } = useAuth()
 
   return useMutation({
-    mutationFn: (employeeId: string) => updateEmployeeStatus(employeeId, "deleted", workspace!.id),
+    mutationFn: (employeeId: string) => deleteEmployee(employeeId),
     onSuccess: () => {
       if (workspace) {
-        // Single prefix-based invalidation instead of 4 separate calls
         queryClient.invalidateQueries({ queryKey: employeeKeys.all(workspace.id) })
-        // Also bust the active-employees combobox cache so modals reflect the change immediately
+        queryClient.invalidateQueries({ queryKey: activeEmployeeKeys.list(workspace.id) })
+      }
+    },
+  })
+}
+
+export function usePurgeEmployeeMutation() {
+  const queryClient = useQueryClient()
+  const { workspace } = useAuth()
+
+  return useMutation({
+    mutationFn: (employeeId: string) => purgeEmployee(employeeId),
+    onSuccess: () => {
+      if (workspace) {
+        queryClient.invalidateQueries({ queryKey: employeeKeys.all(workspace.id) })
         queryClient.invalidateQueries({ queryKey: activeEmployeeKeys.list(workspace.id) })
       }
     },
