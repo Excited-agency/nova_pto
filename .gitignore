@@ -29,3 +29,6 @@ dist-ssr
 
 # MCP server config (contains access tokens)
 .mcp.json
+
+# Local Claude Code settings (machine-specific overrides)
+.claude/settings.local.json
