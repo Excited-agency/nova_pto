@@ -23,6 +23,12 @@ npm run test:e2e:ui     # Playwright UI mode
 npm run test:e2e:headed # Headed (visible browser)
 
 npm run test:all        # Vitest + Playwright
+
+# Run a single Vitest test file
+npx vitest run src/test/unit/your-file.test.ts
+
+# Run a single Playwright spec
+npx playwright test e2e/your-spec.spec.ts
 ```
 
 ## Testing
@@ -49,6 +55,7 @@ Requires a `.env` file with:
 ```
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
+VITE_SITE_URL=...          # Base URL for magic link redirects; falls back to window.location.origin
 ```
 
 ## Architecture
@@ -80,18 +87,24 @@ Pages do **not** fetch data directly. The layered pattern is: **Services → Hoo
 ### Supabase schema
 
 - `workspaces` — `id`, `name`, `logo_url?`, `owner_id` (unique), `created_at`
-- `profiles` — `id` (= auth user id), `workspace_id`, `role` (`"admin" | "user"`), `email`, `first_name?`, `last_name?`, `avatar_url?`, `status` (`EmployeeStatus`), `department_id?`, `location?`, `hire_date?`, `created_at` (note: `full_name` was split into `first_name` + `last_name` via migration)
+- `profiles` — `id` (= auth user id), `workspace_id`, `role` (`"owner" | "admin" | "user"`), `email`, `first_name?`, `last_name?`, `avatar_url?`, `status` (`EmployeeStatus`), `department_id?`, `location?`, `hire_date?`, `created_at` (note: `full_name` was split into `first_name` + `last_name` via migration)
 - `departments` — `id`, `workspace_id`, `name`, `created_at`
-- `time_off_requests` — `id`, `profile_id`, `workspace_id`, `category_id?`, `employee_name`, `employee_email`, `employee_avatar_url?`, `start_date`, `end_date`, `start_period`, `end_period`, `total_days`, `request_type`, `status`, `comment?`, `rejection_reason?`, `created_at`, `updated_at`
+- `time_off_requests` — `id`, `profile_id`, `workspace_id`, `category_id?`, `employee_name`, `employee_email`, `employee_avatar_url?`, `start_date`, `end_date`, `start_period`, `end_period`, `total_days`, `request_type`, `status`, `comment?`, `rejection_reason?`, `reviewed_by?` (profile id of the admin who approved/rejected), `reviewed_at?`, `created_at`, `updated_at`
 - `time_off_categories` — `id`, `workspace_id`, `name`, `emoji?`, `colour`, `is_active`, `leave_type` (`"paid" | "unpaid"`), `accrual_method`, `amount_value`, `granting_frequency`, `new_hire_rule`, `waiting_period_value/unit`, `carryover_limit_enabled`, `carryover_max_days`, `sort_order`, `created_at`, `updated_at`
 - `holidays` — `id`, `workspace_id`, `name`, `date`, `is_custom`, `country_code?`, `year?`, `created_at`, `updated_at`
 - `employee_balances` — `id`, `employee_id`, `category_id`, `workspace_id`, `remaining_days`, `created_at`, `updated_at`
+- `balance_adjustment_log` — `id`, `employee_id`, `category_id`, `workspace_id`, `delta`, `balance_before`, `balance_after`, `reason` (`"manual_adjustment" | "request_approved" | "record_created"`), `request_id?`, `adjusted_by?`, `created_at`. Populated by the three balance-writing RPCs; never written directly from the client.
 - `slack_installations` — Slack OAuth install data per workspace (`workspace_id`, `slack_team_id`, `bot_token`, etc.)
 - `slack_user_mappings` — maps Nova `profile_id` to Slack user IDs
-- `slack_interactions` — idempotency tracking for Slack button interactions
+- `slack_interaction_log` — idempotency tracking for Slack button interactions
 - `slack_dm_messages` — per-admin DM channel/message references for updating Slack notifications in-place
 
 Migrations live in `supabase/migrations/`. Run `supabase db push` to apply them to a local/remote instance.
+
+Key DB-side side-effects worth knowing:
+- `sync_profile_to_requests` trigger — profile name/avatar changes propagate to the denormalised columns on `time_off_requests`
+- `after_category_insert/update_seed_balances` triggers — creating a category or toggling it active seeds `employee_balances` rows for all active employees
+- `auto_reject_pending_on_employee_delete` trigger — soft-deleting an employee auto-rejects their pending requests
 
 ### App routes
 
@@ -119,13 +132,14 @@ Defined in `src/App.tsx`. All page components are lazy-loaded via `React.lazy` +
 - `src/types/time-off-category.ts` — `TimeOffCategory`, `LeaveType`, `AccrualMethod`, `GrantingFrequency`, `NewHireRule`, `PeriodUnit`
 - `src/types/holiday.ts` — `Holiday`, `NagerHoliday` (external API shape), `CreateHolidayData`
 - `src/types/employee-balance.ts` — `EmployeeBalance` interface
+- `src/types/balance-adjustment-log.ts` — `BalanceAdjustmentLog`, `BalanceAdjustmentReason`
 - `src/types/csv-import.ts` — `SchemaField`, `HeaderMapping`, `CsvEmployeeRow`, `RowValidation`, `ImportRowResult`, `ImportStep`
 
 ### Services
 
 - `src/lib/employee-service.ts` — `fetchEmployees`, `fetchEmployeeCounts`, `fetchEmployee`, `updateEmployee`, `updateEmployeeStatus`, `bulkUpdateEmployeeStatus`, `inviteEmployee` (calls the `invite-employee` Edge Function), `deleteEmployee` / `purgeEmployee` (call the `delete-employee` Edge Function with `purge: false / true`)
 - `src/lib/settings-service.ts` — `fetchDepartments`, `createDepartment`, `updateDepartment`, `deleteDepartment`, `updateWorkspace`, `updateProfile`, `uploadImage`, `removeImage`
-- `src/lib/time-off-request-service.ts` — fetch/create/approve/reject time-off requests; `fetchEmployeeBalance`, `fetchEmployeeBalances`
+- `src/lib/time-off-request-service.ts` — fetch/create/approve/reject time-off requests; `fetchEmployeeBalance`, `fetchEmployeeBalances`, `fetchBalanceAdjustmentLog`. Reads from the `time_off_requests_safe` security view (masks `comment` and `rejection_reason` for non-owners; exposes `reviewed_by`/`reviewed_at`). Approval/rejection go through RPCs: `approve_time_off_request`, `reject_time_off_request` (both stamp `reviewed_by`/`reviewed_at` and insert a `balance_adjustment_log` row). Admin record creation uses `create_time_off_record` RPC (calculates business days, deducts balance, logs adjustment in one transaction). Balance editing uses `bulk_update_employee_balances` RPC (also inserts into `balance_adjustment_log`).
 - `src/lib/time-off-category-service.ts` — category CRUD + `updateCategorySortOrder`
 - `src/lib/holiday-service.ts` — holiday import and management
 - `src/lib/report-service.ts` — report data fetching; `src/lib/generate-report.ts` — Excel export via `xlsx`
@@ -151,7 +165,7 @@ All in `src/hooks/`. Each wraps one domain's service calls in TanStack Query:
 
 - `use-auth.ts` — simple `useContext(AuthContext)` consumer
 - `use-employees.ts` — `useEmployeeList`, `useEmployeeCounts`, `useEmployee`, `useEmployeeStatusMutation`, `useBulkEmployeeStatusMutation`, `useUpdateEmployeeMutation`, `useInviteEmployeeMutation`, `useDeleteEmployeeMutation`, `usePurgeEmployeeMutation`
-- `use-time-off-requests.ts` — `useTimeOffRequests`, `useMyTimeOffRequests`, `useEmployeeBalance`, `useEmployeeBalances`, `useApproveTimeOffRequestMutation`, `useRejectTimeOffRequestMutation`, `useSubmitTimeOffRequestMutation`, `useCreateTimeOffRecordMutation`
+- `use-time-off-requests.ts` — `useTimeOffRequests`, `useMyTimeOffRequests`, `useEmployeeBalance`, `useEmployeeBalances`, `useUpdateEmployeeBalancesMutation`, `useApproveTimeOffRequestMutation`, `useRejectTimeOffRequestMutation`, `useSubmitTimeOffRequestMutation`, `useCreateTimeOffRecordMutation`, `useWithdrawRequestMutation`
 - `use-time-off-categories.ts` — category CRUD queries/mutations
 - `use-departments.ts` — department CRUD queries/mutations
 - `use-holidays.ts` — holiday management queries/mutations
@@ -159,13 +173,21 @@ All in `src/hooks/`. Each wraps one domain's service calls in TanStack Query:
 - `use-debounced-value.ts` — debounced value for search inputs
 - `use-csv-import.ts` — manages multi-step CSV employee import workflow (upload → preview → import → results), including file parsing, header mapping, validation, and progress tracking
 
+### Access roles
+
+- **Owner** — workspace creator; unique per workspace; can delete the workspace; cannot be deactivated or deleted by admins
+- **Admin** — full access to employees, categories, requests, settings
+- **User** — self-service only: submit/view/withdraw own requests; edit own name + avatar via `/settings`
+
+Role checks happen both at the route level (`AdminRoute` component) and inside RLS policies (`is_workspace_admin()` helper). The `requests` route also switches the rendered page component based on role (admin → `RequestsPage`, user → `EmployeeRequestsPage`).
+
 ### Supabase Edge Functions
 
-- `supabase/functions/invite-employee/` — Deno function: verifies caller JWT + admin role, creates Supabase auth user via admin API, inserts `profiles` row.
-- `supabase/functions/delete-employee/` — soft-deletes or permanently purges a single employee (admin-only, verifies JWT + role)
+- `supabase/functions/invite-employee/` — verifies caller JWT + admin role, creates Supabase auth user via admin API, inserts `profiles` row
+- `supabase/functions/delete-employee/` — soft-deletes (`purge: false`: status → `"deleted"`, auth user removed) or permanently purges (`purge: true`: profile row deleted) a single employee; admin-only
 - `supabase/functions/delete-workspace/` — workspace deletion (owner-only, cascades all workspace data)
 - `supabase/functions/slack-oauth/` — handles Slack OAuth callback, stores bot token in `slack_installations`
-- `supabase/functions/slack-events/` — receives Slack event payloads (button clicks, etc.), uses `slack_interactions` for idempotency
+- `supabase/functions/slack-events/` — receives Slack event payloads (button clicks, etc.), uses `slack_interaction_log` for idempotency
 - `supabase/functions/slack-notify/` — sends/updates DM notifications to admins via `slack_dm_messages`
 
 Deploy with `supabase functions deploy <function-name>`.

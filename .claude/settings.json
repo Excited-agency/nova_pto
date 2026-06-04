@@ -56,6 +56,10 @@
       "mcp__supabase__get_advisors"
     ]
   },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "supabase"
+  ],
   "hooks": {
     "PreToolUse": [
       {
@@ -84,10 +88,6 @@
       }
     ]
   },
-  "enableAllProjectMcpServers": true,
-  "enabledMcpjsonServers": [
-    "supabase"
-  ],
   "enabledPlugins": {
     "figma@claude-plugins-official": true,
     "code-review@claude-plugins-official": true,
