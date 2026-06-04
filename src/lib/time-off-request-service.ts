@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase"
 import type { TimeOffRequest, TimeOffStatus } from "@/types/time-off-request"
 import type { EmployeeBalance } from "@/types/employee-balance"
+import type { BalanceAdjustmentLog } from "@/types/balance-adjustment-log"
 
 export async function fetchTimeOffRequests(workspaceId: string) {
   const { data, error } = await supabase
@@ -8,7 +9,8 @@ export async function fetchTimeOffRequests(workspaceId: string) {
     .select(
       "id, profile_id, workspace_id, category_id, employee_name, employee_email, " +
       "employee_avatar_url, start_date, end_date, start_period, end_period, " +
-      "total_days, request_type, status, comment, rejection_reason, created_at, updated_at"
+      "total_days, request_type, status, comment, rejection_reason, " +
+      "reviewed_by, reviewed_at, created_at, updated_at"
     )
     .eq("workspace_id", workspaceId)
     .neq("status", "withdrawn")
@@ -47,22 +49,6 @@ export async function fetchEmployeeBalances(
 
   if (error) throw error
   return (data ?? []) as EmployeeBalance[]
-}
-
-export async function updateEmployeeBalance(
-  employeeId: string,
-  categoryId: string,
-  remainingDays: number,
-  workspaceId: string
-) {
-  const { error } = await supabase
-    .from("employee_balances")
-    .update({ remaining_days: remainingDays, updated_at: new Date().toISOString() })
-    .eq("employee_id", employeeId)
-    .eq("category_id", categoryId)
-    .eq("workspace_id", workspaceId)
-
-  if (error) throw error
 }
 
 export async function bulkUpdateEmployeeBalances(
@@ -199,7 +185,8 @@ export async function fetchMyTimeOffRequests(profileId: string, workspaceId: str
     .select(
       "id, profile_id, workspace_id, category_id, employee_name, employee_email, " +
       "employee_avatar_url, start_date, end_date, start_period, end_period, " +
-      "total_days, request_type, status, comment, rejection_reason, created_at, updated_at"
+      "total_days, request_type, status, comment, rejection_reason, " +
+      "reviewed_by, reviewed_at, created_at, updated_at"
     )
     .eq("profile_id", profileId)
     .eq("workspace_id", workspaceId)
@@ -279,4 +266,22 @@ export async function fetchActiveEmployeesForCombobox(workspaceId: string) {
 
   if (error) throw error
   return (data ?? []) as ComboboxEmployee[]
+}
+
+export async function fetchBalanceAdjustmentLog(
+  employeeId: string,
+  workspaceId: string
+): Promise<BalanceAdjustmentLog[]> {
+  const { data, error } = await supabase
+    .from("balance_adjustment_log")
+    .select(
+      "id, employee_id, category_id, workspace_id, delta, balance_before, " +
+      "balance_after, reason, request_id, adjusted_by, created_at"
+    )
+    .eq("employee_id", employeeId)
+    .eq("workspace_id", workspaceId)
+    .order("created_at", { ascending: false })
+
+  if (error) throw error
+  return (data ?? []) as BalanceAdjustmentLog[]
 }

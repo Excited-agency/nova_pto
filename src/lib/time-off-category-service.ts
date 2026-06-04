@@ -125,17 +125,9 @@ export async function updateCategorySortOrder(
   items: { id: string; sort_order: number }[],
   workspaceId: string
 ) {
-  const results = await Promise.all(
-    items.map((item) =>
-      supabase
-        .from("time_off_categories")
-        .update({ sort_order: item.sort_order })
-        .eq("id", item.id)
-        .eq("workspace_id", workspaceId)
-    )
-  )
-
-  const errors = results.filter((r) => r.error).map((r) => r.error!)
-  if (errors.length === 1) throw errors[0]
-  if (errors.length > 1) throw new Error(`${errors.length} sort order updates failed: ${errors[0].message}`)
+  const { error } = await supabase.rpc("update_categories_sort_order", {
+    p_workspace_id: workspaceId,
+    p_updates: items,
+  })
+  if (error) throw error
 }

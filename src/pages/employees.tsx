@@ -77,6 +77,7 @@ interface EmployeeRowProps {
   onDeactivate: (emp: Profile) => void
   onActivate: (emp: Profile) => void
   onDelete: (emp: Profile) => void
+  onPurge: (emp: Profile) => void
 }
 
 const EmployeeRow = memo(function EmployeeRow({
@@ -93,6 +94,7 @@ const EmployeeRow = memo(function EmployeeRow({
   onDeactivate,
   onActivate,
   onDelete,
+  onPurge,
 }: EmployeeRowProps) {
   const [popoverOpen, setPopoverOpen] = useState(false)
 
@@ -242,35 +244,52 @@ const EmployeeRow = memo(function EmployeeRow({
                           ],
                         },
                       ]
-                    : [
-                        {
-                          items: [
-                            {
-                              type: "icon",
-                              icon: <UserCheck className="size-4" />,
-                              label: "Activate",
-                              onClick: () => {
-                                setPopoverOpen(false)
-                                onActivate(emp)
+                    : emp.status === "deleted"
+                      ? [
+                          {
+                            items: [
+                              {
+                                type: "icon",
+                                variant: "destructive",
+                                icon: <Trash2 className="size-4" />,
+                                label: "Remove from list",
+                                onClick: () => {
+                                  setPopoverOpen(false)
+                                  onPurge(emp)
+                                },
                               },
-                            },
-                          ],
-                        },
-                        {
-                          items: [
-                            {
-                              type: "icon",
-                              variant: "destructive",
-                              icon: <Trash2 className="size-4" />,
-                              label: "Delete employee",
-                              onClick: () => {
-                                setPopoverOpen(false)
-                                onDelete(emp)
+                            ],
+                          },
+                        ]
+                      : [
+                          {
+                            items: [
+                              {
+                                type: "icon",
+                                icon: <UserCheck className="size-4" />,
+                                label: "Activate",
+                                onClick: () => {
+                                  setPopoverOpen(false)
+                                  onActivate(emp)
+                                },
                               },
-                            },
-                          ],
-                        },
-                      ]
+                            ],
+                          },
+                          {
+                            items: [
+                              {
+                                type: "icon",
+                                variant: "destructive",
+                                icon: <Trash2 className="size-4" />,
+                                label: "Delete employee",
+                                onClick: () => {
+                                  setPopoverOpen(false)
+                                  onDelete(emp)
+                                },
+                              },
+                            ],
+                          },
+                        ]
               }
             />
           </PopoverContent>
@@ -294,8 +313,6 @@ export function EmployeesPage() {
 
   // Delete dialog state (Active/Inactive → hard-delete auth + soft-delete profile)
   const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null)
-  // Purge dialog state (Deleted tab → remove profile row entirely)
-  const [purgeTarget, setPurgeTarget] = useState<Profile | null>(null)
 
   // Query hooks
   const { data: employees = [], isLoading: loading, isError, refetch } = useEmployeeList(activeTab)
@@ -310,6 +327,7 @@ export function EmployeesPage() {
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [bulkDeactivateOpen, setBulkDeactivateOpen] = useState(false)
 
   // CSV import modal state
   const [importOpen, setImportOpen] = useState(false)
@@ -413,43 +431,49 @@ export function EmployeesPage() {
   }, [statusMutation])
 
   const handleDeleteConfirm = useCallback(() => {
-    if (!deleteTarget) return
-    deleteMutation.mutate(deleteTarget.id, {
+    if (!deleteTarget || !workspace) return
+    const target = deleteTarget
+    queryClient.setQueryData(
+      employeeKeys.list(workspace.id, activeTab),
+      (old: Profile[] | undefined) => (old ?? []).filter((e) => e.id !== target.id)
+    )
+    setDeleteTarget(null)
+    deleteMutation.mutate(target.id, {
       onSuccess: () => {
         addToast({
           title: "Employee deleted",
-          description: `${getDisplayName(deleteTarget.first_name, deleteTarget.last_name) || deleteTarget.email} has been deleted and their email has been freed.`,
+          description: `${getDisplayName(target.first_name, target.last_name) || target.email} has been deleted and their email has been freed.`,
         })
-        setDeleteTarget(null)
+      },
+      onError: () => {
+        queryClient.invalidateQueries({ queryKey: employeeKeys.all(workspace.id) })
+        addToast({ title: "Couldn't delete employee", variant: "error" })
       },
     })
-  }, [deleteTarget, deleteMutation])
+  }, [deleteTarget, workspace, activeTab, queryClient, deleteMutation])
 
-  const handlePurgeConfirm = useCallback(() => {
-    if (!purgeTarget) return
-    purgeMutation.mutate(purgeTarget.id, {
+  const handlePurge = useCallback((emp: Profile) => {
+    purgeMutation.mutate(emp.id, {
       onSuccess: () => {
         addToast({
           title: "Record removed",
-          description: `${getDisplayName(purgeTarget.first_name, purgeTarget.last_name) || purgeTarget.email} has been removed from the deleted list.`,
+          description: `${getDisplayName(emp.first_name, emp.last_name) || emp.email} has been removed from the deleted list.`,
         })
-        setPurgeTarget(null)
       },
     })
-  }, [purgeTarget, purgeMutation])
+  }, [purgeMutation])
 
-  // Routes to delete (Active/Inactive) or purge (Deleted) based on employee status
   const handleDelete = useCallback((emp: Profile) => {
-    if (emp.status === "deleted") {
-      setPurgeTarget(emp)
-    } else {
-      setDeleteTarget(emp)
-    }
+    setDeleteTarget(emp)
   }, [])
 
   const handleClearSelection = useCallback(() => setSelectedIds(new Set()), [])
 
   const handleBulkDeactivate = useCallback(() => {
+    setBulkDeactivateOpen(true)
+  }, [])
+
+  const handleBulkDeactivateConfirm = useCallback(() => {
     if (!workspace) return
     const ids = [...selectedIds]
     queryClient.setQueryData(
@@ -457,6 +481,7 @@ export function EmployeesPage() {
       (old: Profile[] | undefined) => (old ?? []).filter((e) => !ids.includes(e.id))
     )
     setSelectedIds(new Set())
+    setBulkDeactivateOpen(false)
     bulkMutation.mutate(
       { ids, status: "inactive" },
       {
@@ -675,6 +700,7 @@ export function EmployeesPage() {
                   onDeactivate={handleDeactivate}
                   onActivate={handleActivate}
                   onDelete={handleDelete}
+                  onPurge={handlePurge}
                 />
               ))}
             </div>
@@ -783,35 +809,6 @@ export function EmployeesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      {/* Purge confirmation dialog (Deleted tab) */}
-      <AlertDialog
-        open={!!purgeTarget}
-        onOpenChange={(open) => {
-          if (!open) setPurgeTarget(null)
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove deleted record</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently remove{" "}
-              {purgeTarget
-                ? getDisplayName(purgeTarget.first_name, purgeTarget.last_name) || purgeTarget.email
-                : ""}
-              {" "}from your deleted employees list. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={handlePurgeConfirm}
-            >
-              Remove
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
       {/* Bulk delete confirmation dialog */}
       <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
         <AlertDialogContent>
@@ -831,6 +828,27 @@ export function EmployeesPage() {
               onClick={handleBulkDeleteConfirm}
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk deactivate confirmation dialog */}
+      <AlertDialog open={bulkDeactivateOpen} onOpenChange={setBulkDeactivateOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Deactivate {selectedIds.size} employee{selectedIds.size !== 1 ? "s" : ""}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to deactivate {selectedIds.size} employee{selectedIds.size !== 1 ? "s" : ""}?
+              They will lose access to the workspace.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDeactivateConfirm}>
+              Deactivate
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

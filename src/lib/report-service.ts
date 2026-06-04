@@ -6,6 +6,9 @@ export interface ReportEmployee {
   last_name: string | null
   email: string
   department_name: string | null
+  status: string
+  hire_date: string | null
+  location: string | null
 }
 
 export interface ReportBalance {
@@ -19,7 +22,7 @@ export async function fetchReportEmployees(
 ): Promise<ReportEmployee[]> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, first_name, last_name, email, departments(name)")
+    .select("id, first_name, last_name, email, status, hire_date, location, departments(name)")
     .eq("workspace_id", workspaceId)
     .eq("status", "active")
     .order("first_name", { ascending: true })
@@ -32,6 +35,9 @@ export async function fetchReportEmployees(
     last_name: row.last_name,
     email: row.email,
     department_name: (row.departments as { name: string } | null)?.name ?? null,
+    status: row.status,
+    hire_date: row.hire_date,
+    location: row.location,
   }))
 }
 

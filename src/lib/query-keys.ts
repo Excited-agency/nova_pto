@@ -44,3 +44,8 @@ export const myRequestKeys = {
   all: (profileId: string) => ["myRequests", profileId] as const,
   list: (profileId: string, workspaceId: string) => ["myRequests", profileId, workspaceId] as const,
 }
+
+export const balanceAdjustmentLogKeys = {
+  allForEmployee: (workspaceId: string, employeeId: string) =>
+    ["balanceAdjustmentLog", workspaceId, employeeId] as const,
+}

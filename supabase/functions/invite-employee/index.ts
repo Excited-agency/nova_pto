@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
       .eq("id", caller.id)
       .single()
 
-    if (profileError || !callerProfile || callerProfile.role !== "admin") {
+    if (profileError || !callerProfile || !["admin", "owner"].includes(callerProfile.role)) {
       return new Response(
         JSON.stringify({ error: "Only admins can invite employees" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }

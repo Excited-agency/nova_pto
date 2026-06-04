@@ -4,7 +4,6 @@ import {
   fetchTimeOffRequests,
   fetchEmployeeBalance,
   fetchEmployeeBalances,
-  updateEmployeeBalance,
   bulkUpdateEmployeeBalances,
   createTimeOffRecord,
   updateTimeOffRequestStatus,
@@ -18,7 +17,7 @@ import {
   type SubmitTimeOffRequestParams,
 } from "@/lib/time-off-request-service"
 import type { TimeOffStatus } from "@/types/time-off-request"
-import { timeOffRequestKeys, employeeBalanceKeys, activeEmployeeKeys, myRequestKeys } from "@/lib/query-keys"
+import { timeOffRequestKeys, employeeBalanceKeys, activeEmployeeKeys, myRequestKeys, balanceAdjustmentLogKeys } from "@/lib/query-keys"
 
 export function useTimeOffRequests() {
   const { workspace } = useAuth()
@@ -65,6 +64,9 @@ export function useCreateTimeOffRecordMutation() {
         queryClient.invalidateQueries({ queryKey: timeOffRequestKeys.all(workspace.id) })
         queryClient.invalidateQueries({
           queryKey: employeeBalanceKeys.allForEmployee(workspace.id, variables.employee_id),
+        })
+        queryClient.invalidateQueries({
+          queryKey: balanceAdjustmentLogKeys.allForEmployee(workspace.id, variables.employee_id),
         })
       }
     },
@@ -113,6 +115,9 @@ export function useApproveRequestMutation() {
         queryClient.invalidateQueries({ queryKey: timeOffRequestKeys.all(workspace.id) })
         queryClient.invalidateQueries({
           queryKey: employeeBalanceKeys.allForEmployee(workspace.id, variables.profileId),
+        })
+        queryClient.invalidateQueries({
+          queryKey: balanceAdjustmentLogKeys.allForEmployee(workspace.id, variables.profileId),
         })
       }
     },
@@ -198,10 +203,10 @@ export function useUpdateEmployeeBalancesMutation() {
     onSuccess: (_data, variables) => {
       if (workspace) {
         queryClient.invalidateQueries({
-          queryKey: employeeBalanceKeys.allForEmployee(
-            workspace.id,
-            variables.employeeId
-          ),
+          queryKey: employeeBalanceKeys.allForEmployee(workspace.id, variables.employeeId),
+        })
+        queryClient.invalidateQueries({
+          queryKey: balanceAdjustmentLogKeys.allForEmployee(workspace.id, variables.employeeId),
         })
       }
     },

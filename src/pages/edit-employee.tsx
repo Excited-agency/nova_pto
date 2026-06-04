@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useNavigate, useParams, useLocation } from "react-router-dom"
 import { Users, ChevronRight } from "lucide-react"
 
@@ -8,7 +8,7 @@ import { EmployeeForm, type EmployeeFormData } from "@/components/employee-form"
 import { uploadImage } from "@/lib/settings-service"
 import { useEmployee, useUpdateEmployeeMutation } from "@/hooks/use-employees"
 import { addToast } from "@/lib/toast"
-import type { Profile } from "@/contexts/auth-context"
+import { useNavigationGuard } from "@/contexts/navigation-guard-context"
 
 export function EditEmployeePage() {
   const navigate = useNavigate()
@@ -18,6 +18,8 @@ export function EditEmployeePage() {
   const backPath = cameFromList ? "/employees" : `/employees/${id}`
   const { data: employee, isLoading: loading, isError } = useEmployee(id)
   const updateMutation = useUpdateEmployeeMutation()
+  const { registerGuard, unregisterGuard } = useNavigationGuard()
+  const [isDirty, setIsDirty] = useState(false)
 
   useEffect(() => {
     if (isError) {
@@ -25,6 +27,23 @@ export function EditEmployeePage() {
       navigate("/employees")
     }
   }, [isError, navigate])
+
+  useEffect(() => {
+    registerGuard(() => {
+      if (!isDirty) return true
+      return window.confirm("You have unsaved changes. Are you sure you want to leave?")
+    })
+    return () => unregisterGuard()
+  }, [isDirty, registerGuard, unregisterGuard])
+
+  useEffect(() => {
+    if (!isDirty) return
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault() }
+    window.addEventListener("beforeunload", handler)
+    return () => window.removeEventListener("beforeunload", handler)
+  }, [isDirty])
+
+  const handleDirtyChange = useCallback((dirty: boolean) => setIsDirty(dirty), [])
 
   async function handleSubmit(data: EmployeeFormData) {
     if (!id) return
@@ -101,19 +120,17 @@ export function EditEmployeePage() {
 
   if (!employee) return null
 
-  const emp = employee as Profile
-
   const initialData = {
-    email: emp.email,
-    firstName: emp.first_name ?? "",
-    lastName: emp.last_name ?? "",
-    departmentId: emp.department_id ?? "",
-    role: emp.role,
-    location: emp.location ?? "",
-    startDate: emp.hire_date
-      ? new Date(emp.hire_date + "T00:00:00")
+    email: employee.email,
+    firstName: employee.first_name ?? "",
+    lastName: employee.last_name ?? "",
+    departmentId: employee.department_id ?? "",
+    role: employee.role,
+    location: employee.location ?? "",
+    startDate: employee.hire_date
+      ? new Date(employee.hire_date + "T00:00:00")
       : undefined,
-    avatarUrl: emp.avatar_url,
+    avatarUrl: employee.avatar_url,
   }
 
   return (
@@ -130,6 +147,7 @@ export function EditEmployeePage() {
           submitLabel="Save changes"
           onSubmit={handleSubmit}
           onCancel={() => navigate(backPath)}
+          onDirtyChange={handleDirtyChange}
         />
       </div>
     </div>

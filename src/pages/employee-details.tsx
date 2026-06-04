@@ -41,7 +41,6 @@ import { useDepartments } from "@/hooks/use-departments"
 import { addToast } from "@/lib/toast"
 import { formatDate } from "@/lib/date-utils"
 import { getDisplayName, getInitials } from "@/lib/utils"
-import type { Profile } from "@/contexts/auth-context"
 
 export function EmployeeDetailsPage() {
   const navigate = useNavigate()
@@ -167,11 +166,10 @@ export function EmployeeDetailsPage() {
     })
   }
 
-  const emp = employee as Profile | undefined
-  const displayName = emp ? getDisplayName(emp.first_name, emp.last_name) : ""
-  const initials = emp ? getInitials(emp.first_name, emp.last_name) : undefined
-  const departmentName = emp?.department_id
-    ? departments.find((d) => d.id === emp.department_id)?.name ?? "—"
+  const displayName = employee ? getDisplayName(employee.first_name, employee.last_name) : ""
+  const initials = employee ? getInitials(employee.first_name, employee.last_name) : undefined
+  const departmentName = employee?.department_id
+    ? departments.find((d) => d.id === employee.department_id)?.name ?? "—"
     : "—"
 
   // Header (shared between loading and loaded states)
@@ -209,11 +207,11 @@ export function EmployeeDetailsPage() {
     )
   }
 
-  if (!emp) return null
+  if (!employee) return null
 
-  const isActive = emp.status === "active"
-  const isViewedEmployeeOwner = emp.role === "owner"
-  const isSelfView = user?.id === emp.id
+  const isActive = employee.status === "active"
+  const isViewedEmployeeOwner = employee.role === "owner"
+  const isSelfView = user?.id === employee.id
   const viewerIsOwner = viewerProfile?.role === "owner"
   // Admin can't manage the owner; owner can manage anyone
   const canManage = !(isViewedEmployeeOwner && !viewerIsOwner)
@@ -227,7 +225,7 @@ export function EmployeeDetailsPage() {
           {/* Employee header */}
           <div className="flex items-center gap-4 w-[600px]">
             <Avatar
-              src={emp.avatar_url ?? undefined}
+              src={employee.avatar_url ?? undefined}
               alt={displayName}
               fallback={initials}
               size="xl"
@@ -238,12 +236,12 @@ export function EmployeeDetailsPage() {
                 <p className="text-lg font-semibold leading-7 tracking-tight text-foreground">
                   {displayName || "—"}
                 </p>
-                <Badge variant={emp.role === "owner" ? "default" : "secondary"}>
-                  {emp.role === "owner" ? "Owner" : emp.role === "admin" ? "Admin" : "User"}
+                <Badge variant={employee.role === "owner" ? "default" : "secondary"}>
+                  {employee.role === "owner" ? "Owner" : employee.role === "admin" ? "Admin" : "User"}
                 </Badge>
               </div>
               <p className="text-sm leading-5 tracking-tight text-muted-foreground">
-                {emp.email}
+                {employee.email}
               </p>
             </div>
 
@@ -394,7 +392,7 @@ export function EmployeeDetailsPage() {
             )}
           </div>
 
-          {!isSelfView && (
+          {!isSelfView && !(viewerProfile?.role === "admin" && isViewedEmployeeOwner) && (
             <>
               <div className="w-[600px]"><Separator /></div>
 
@@ -410,11 +408,11 @@ export function EmployeeDetailsPage() {
                   </div>
                   <div className="flex gap-3">
                     <p className="w-[294px] text-muted-foreground truncate">Location</p>
-                    <p className="text-foreground truncate">{emp.location ?? "—"}</p>
+                    <p className="text-foreground truncate">{employee.location ?? "—"}</p>
                   </div>
                   <div className="flex gap-3">
                     <p className="w-[294px] text-muted-foreground truncate">Hire date</p>
-                    <p className="text-foreground truncate">{formatDate(emp.hire_date)}</p>
+                    <p className="text-foreground truncate">{formatDate(employee.hire_date)}</p>
                   </div>
                 </div>
               </div>
@@ -488,7 +486,7 @@ export function EmployeeDetailsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete employee</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete {displayName || emp.email}? This action cannot be undone.
+              Are you sure you want to delete {displayName || employee.email}? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

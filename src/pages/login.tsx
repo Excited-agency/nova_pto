@@ -61,13 +61,7 @@ export function LoginPage() {
         </Button>
       </form>
 
-      {/* Legal text */}
-      <p className="text-sm leading-5 tracking-[-0.28px] text-muted-foreground text-center">
-        By continuing you agree to the Nova{" "}
-        <a href="#" className="underline text-muted-foreground">Privacy Policy</a>
-        {" "}and{" "}
-        <a href="#" className="underline text-muted-foreground">Terms of Use</a>
-      </p>
+
     </AuthLayout>
   )
 }

@@ -23,6 +23,8 @@ function getEmployeeName(firstName: string | null, lastName: string | null): str
 }
 
 export async function generateReport(workspaceId: string): Promise<void> {
+  // xlsx has known CVEs (GHSA-4r6h-8v6p-xvw6, GHSA-5pgg-2g8v-p4x9) with no upstream fix.
+  // Risk accepted: used only for admin Excel export on trusted server-side data, no user input parsed here.
   const XLSX = await import("xlsx")
 
   const [employees, balances, categories, requests] = await Promise.all([
@@ -45,6 +47,9 @@ export async function generateReport(workspaceId: string): Promise<void> {
     "Employee Name",
     "Email",
     "Department",
+    "Location",
+    "Hire Date",
+    "Status",
     ...activeCategories.map((c) => c.name),
   ]
 
@@ -54,6 +59,9 @@ export async function generateReport(workspaceId: string): Promise<void> {
       getEmployeeName(emp.first_name, emp.last_name),
       emp.email,
       emp.department_name ?? "—",
+      emp.location ?? "—",
+      emp.hire_date ?? "—",
+      emp.status.charAt(0).toUpperCase() + emp.status.slice(1),
       ...activeCategories.map((c) => empBalances?.get(c.id) ?? 0),
     ]
   })
@@ -70,6 +78,8 @@ export async function generateReport(workspaceId: string): Promise<void> {
     "Duration (days)",
     "Status",
     "Comment",
+    "Rejection Reason",
+    "Reviewed At",
   ]
 
   const requestRows = requests.map((req) => {
@@ -85,6 +95,8 @@ export async function generateReport(workspaceId: string): Promise<void> {
       req.total_days ?? calendarDaysFallback(req.start_date, req.end_date),
       req.status.charAt(0).toUpperCase() + req.status.slice(1),
       req.comment ?? "",
+      req.rejection_reason ?? "",
+      req.reviewed_at ? new Date(req.reviewed_at).toISOString().split("T")[0] : "",
     ]
   })
 

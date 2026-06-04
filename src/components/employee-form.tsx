@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { CloudUpload, User } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -51,6 +51,7 @@ interface EmployeeFormProps {
   submitLabel: string
   onSubmit: (data: EmployeeFormData) => Promise<void>
   onCancel: () => void
+  onDirtyChange?: (isDirty: boolean) => void
 }
 
 export function EmployeeForm({
@@ -61,6 +62,7 @@ export function EmployeeForm({
   submitLabel,
   onSubmit,
   onCancel,
+  onDirtyChange,
 }: EmployeeFormProps) {
   // Form state
   const [email, setEmail] = useState(initialData?.email ?? "")
@@ -124,6 +126,10 @@ export function EmployeeForm({
     if (avatarRemoved && initialSnapshot.avatarUrl !== null) return true
     return false
   }, [firstName, lastName, departmentId, role, location, startDate, avatarFile, avatarRemoved, initialSnapshot])
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty)
+  }, [isDirty, onDirtyChange])
 
   const displayName = getDisplayName(firstName, lastName)
 
