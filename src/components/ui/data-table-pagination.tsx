@@ -36,8 +36,8 @@ export interface DataTablePaginationProps extends React.ComponentProps<"div"> {
 
 export function DataTablePagination({
   type = "simple",
-  selectedCount = 0,
-  totalRows = 0,
+  selectedCount: _selectedCount = 0,
+  totalRows: _totalRows = 0,
   canPrevious = false,
   canNext = false,
   onPrevious,

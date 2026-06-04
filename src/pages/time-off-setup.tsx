@@ -1,15 +1,14 @@
 import { useState, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
-import { FileClock, Plus, CalendarSearch, CalendarArrowDown, Pencil, Trash2, EllipsisIcon, X } from "lucide-react"
+import { FileClock, Plus, CalendarSearch, CalendarArrowDown, Trash2, X } from "lucide-react"
 import {
   DndContext,
   closestCenter,
   KeyboardSensor,
   PointerSensor,
   useSensor,
-  useSensors,
+  useSensors, type DragEndEvent
 } from "@dnd-kit/core"
-import type { DragEndEvent } from "@dnd-kit/core"
 import {
   SortableContext,
   sortableKeyboardCoordinates,
@@ -21,12 +20,8 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { TabGroup } from "@/components/ui/tab-group"
 import { DataTableHeaderCell } from "@/components/ui/data-table-header-cell"
-import { DataTableCell } from "@/components/ui/data-table-cell"
-import { Badge } from "@/components/ui/badge"
 import { Empty } from "@/components/ui/empty"
 import { BreadcrumbItem } from "@/components/ui/breadcrumb-item"
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
-import { ComboboxMenu } from "@/components/ui/combobox-menu"
 import {
   AlertDialog,
   AlertDialogContent,
@@ -38,6 +33,7 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog"
 import { SortableCategoryRow } from "@/components/sortable-category-row"
+import { HolidayListItem } from "@/components/categories/holiday-list-item"
 import { ImportHolidayModal } from "@/components/import-holiday-modal"
 import { HolidayModal } from "@/components/holiday-modal"
 import {
@@ -53,7 +49,6 @@ import { addToast } from "@/lib/toast"
 import { cn } from "@/lib/utils"
 import { holidayKeys } from "@/lib/query-keys"
 import type { TimeOffCategory } from "@/types/time-off-category"
-import type { Holiday } from "@/types/holiday"
 
 type TabValue = "categories" | "holidays"
 
@@ -148,17 +143,6 @@ export function TimeOffSetupPage() {
     })
   }, [deleteTarget, deleteMutation])
 
-  // Holiday helpers
-  const formatHolidayDate = (dateStr: string): string => {
-    const date = new Date(dateStr + "T00:00:00")
-    return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
-  }
-
-  const getDayOfWeek = (dateStr: string): string => {
-    const date = new Date(dateStr + "T00:00:00")
-    return date.toLocaleDateString("en-US", { weekday: "long" })
-  }
-
   const allSelected = holidays.length > 0 && selectedHolidayIds.size === holidays.length
   const someSelected = selectedHolidayIds.size > 0 && !allSelected
 
@@ -170,7 +154,7 @@ export function TimeOffSetupPage() {
   const handleToggleOne = (id: string) => {
     setSelectedHolidayIds((prev) => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) { next.delete(id) } else { next.add(id) }
       return next
     })
   }
@@ -387,122 +371,19 @@ export function TimeOffSetupPage() {
                 />
               </div>
             ) : (
-              holidays.map((holiday, index) => {
-                const isLast = index === holidays.length - 1
-                return (
-                <div key={holiday.id} className="flex">
-                  <DataTableCell
-                    type="checkbox"
-                    size="md"
-                    className="w-[28px]"
-                    checked={selectedHolidayIds.has(holiday.id)}
-                    onCheckedChange={() => handleToggleOne(holiday.id)}
-                    border={!isLast}
-                  />
-                  <DataTableCell
-                    type="text"
-                    size="md"
-                    label={holiday.name}
-                    labelClassName="font-medium"
-                    className="flex-1"
-                    border={!isLast}
-                  />
-                  <DataTableCell
-                    type="text-description"
-                    size="md"
-                    label={formatHolidayDate(holiday.date)}
-                    description={getDayOfWeek(holiday.date)}
-                    className="flex-1"
-                    border={!isLast}
-                  />
-                  <DataTableCell
-                    type="badge"
-                    size="md"
-                    className="flex-1"
-                    badgeNode={
-                      <Badge variant="secondary">
-                        {holiday.is_custom ? "Custom" : "Public"}
-                      </Badge>
-                    }
-                    border={!isLast}
-                  />
-                  <div
-                    className="relative flex items-center justify-center w-14 h-[72px] px-3 py-2"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Popover
-                      open={openPopoverId === holiday.id}
-                      onOpenChange={(open) =>
-                        setOpenPopoverId(open ? holiday.id : null)
-                      }
-                    >
-                      <PopoverTrigger asChild>
-                        <Button variant="ghost" size="icon-sm">
-                          <EllipsisIcon className="size-4" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent
-                        align="end"
-                        className="p-0 border-0 shadow-none"
-                      >
-                        <ComboboxMenu
-                          groups={
-                            holiday.is_custom
-                              ? [
-                                  {
-                                    items: [
-                                      {
-                                        type: "icon",
-                                        icon: <Pencil className="size-4" />,
-                                        label: "Edit holiday",
-                                        onClick: () => {
-                                          setOpenPopoverId(null)
-                                          setEditingHoliday(holiday)
-                                          setHolidayModalOpen(true)
-                                        },
-                                      },
-                                    ],
-                                  },
-                                  {
-                                    items: [
-                                      {
-                                        type: "icon",
-                                        variant: "destructive",
-                                        icon: <Trash2 className="size-4" />,
-                                        label: "Delete",
-                                        onClick: () => {
-                                          setOpenPopoverId(null)
-                                          setDeleteHolidayTarget(holiday)
-                                        },
-                                      },
-                                    ],
-                                  },
-                                ]
-                              : [
-                                  {
-                                    items: [
-                                      {
-                                        type: "icon",
-                                        variant: "destructive",
-                                        icon: <Trash2 className="size-4" />,
-                                        label: "Delete",
-                                        onClick: () => {
-                                          setOpenPopoverId(null)
-                                          setDeleteHolidayTarget(holiday)
-                                        },
-                                      },
-                                    ],
-                                  },
-                                ]
-                          }
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    {!isLast && <div className="absolute bottom-0 left-0 right-0 border-b border-border" />}
-                  </div>
-                </div>
-                )
-              })
+              holidays.map((holiday, index) => (
+                <HolidayListItem
+                  key={holiday.id}
+                  holiday={holiday}
+                  isLast={index === holidays.length - 1}
+                  isSelected={selectedHolidayIds.has(holiday.id)}
+                  isPopoverOpen={openPopoverId === holiday.id}
+                  onToggleSelect={handleToggleOne}
+                  onPopoverOpenChange={setOpenPopoverId}
+                  onEdit={(h) => { setEditingHoliday(h); setHolidayModalOpen(true) }}
+                  onDelete={setDeleteHolidayTarget}
+                />
+              ))
             )}
           </div>
         )}

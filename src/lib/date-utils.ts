@@ -90,6 +90,14 @@ export function formatPeriodLabel(period: string): string {
   return labels[period] ?? period
 }
 
+export function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  )
+}
+
 export function isBeforeDate(date: Date, referenceDate: Date): boolean {
   if (date.getFullYear() < referenceDate.getFullYear()) return true
   if (date.getFullYear() > referenceDate.getFullYear()) return false

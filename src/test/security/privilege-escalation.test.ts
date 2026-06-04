@@ -21,7 +21,7 @@ describe.skipIf(skipIfNoServiceKey())("Privilege escalation attempts (ESCALATION
 
   describe("ESCALATION-1: Direct role self-promotion blocked", () => {
     it("employee UPDATE role=admin via anon client is blocked", async () => {
-      const { data } = await employee.userClient
+      await employee.userClient
         .from("profiles")
         .update({ role: "admin" })
         .eq("id", employee.userId)
@@ -63,7 +63,7 @@ describe.skipIf(skipIfNoServiceKey())("Privilege escalation attempts (ESCALATION
   describe("ESCALATION-3: Workspace owner_id cannot be transferred", () => {
     it("Any UPDATE to owner_id is rejected by trigger", async () => {
       const newOwnerId = crypto.randomUUID()
-      const { error } = await employee.userClient
+      await employee.userClient
         .from("workspaces")
         .update({ owner_id: newOwnerId })
         .eq("id", employee.workspaceId)
@@ -79,7 +79,7 @@ describe.skipIf(skipIfNoServiceKey())("Privilege escalation attempts (ESCALATION
 
   describe("ESCALATION-4: Service role trigger also blocks owner change", () => {
     it("Even service role cannot change owner_id via UPDATE (trigger fires for all)", async () => {
-      const { error } = await serviceClient
+      await serviceClient
         .from("workspaces")
         .update({ owner_id: crypto.randomUUID() })
         .eq("id", employee.workspaceId)

@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { getMonthGrid, assignEventsToWeeks, normalizeEvents } from "@/lib/calendar-utils"
-import type { CalendarEvent } from "@/lib/calendar-utils"
+import { getMonthGrid, assignEventsToWeeks, type CalendarEvent } from "@/lib/calendar-utils"
 
 describe("getMonthGrid", () => {
   it("May 2026 starts on a Friday → grid starts Mon April 27", () => {

@@ -4,6 +4,7 @@ import {
   fetchTimeOffRequests,
   fetchEmployeeBalance,
   fetchEmployeeBalances,
+  fetchBalanceAdjustmentLog,
   bulkUpdateEmployeeBalances,
   createTimeOffRecord,
   updateTimeOffRequestStatus,
@@ -16,6 +17,7 @@ import {
   type CreateTimeOffRecordParams,
   type SubmitTimeOffRequestParams,
 } from "@/lib/time-off-request-service"
+import type { BalanceAdjustmentLog } from "@/types/balance-adjustment-log"
 import type { TimeOffStatus } from "@/types/time-off-request"
 import { timeOffRequestKeys, employeeBalanceKeys, activeEmployeeKeys, myRequestKeys, balanceAdjustmentLogKeys } from "@/lib/query-keys"
 
@@ -182,6 +184,17 @@ export function useSubmitTimeOffRequestMutation() {
         queryClient.invalidateQueries({ queryKey: myRequestKeys.all(profile.id) })
       }
     },
+  })
+}
+
+export function useBalanceAdjustmentLog(employeeId: string | undefined) {
+  const { workspace } = useAuth()
+
+  return useQuery({
+    queryKey: balanceAdjustmentLogKeys.allForEmployee(workspace?.id ?? "", employeeId ?? ""),
+    queryFn: (): Promise<BalanceAdjustmentLog[]> =>
+      fetchBalanceAdjustmentLog(employeeId!, workspace!.id),
+    enabled: !!employeeId && !!workspace,
   })
 }
 

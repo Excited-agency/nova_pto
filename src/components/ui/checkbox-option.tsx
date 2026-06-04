@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Checkbox as CheckboxPrimitive } from "radix-ui"
+import { type Checkbox as CheckboxPrimitive } from "radix-ui"
 import type { CheckedState } from "@radix-ui/react-checkbox"
 
 import { cn } from "@/lib/utils"

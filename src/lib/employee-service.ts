@@ -1,5 +1,7 @@
 import { supabase } from "@/lib/supabase"
-import type { EmployeeStatus } from "@/types/employee"
+import type { EmployeeStatus, InviteEmployeeData, UpdateEmployeeData } from "@/types/employee"
+
+export type { InviteEmployeeData, UpdateEmployeeData } from "@/types/employee"
 
 export async function updateEmployeeStatus(
   employeeId: string,
@@ -51,17 +53,6 @@ export async function fetchEmployees(
 
   if (error) throw error
   return { data: data ?? [], count: count ?? 0 }
-}
-
-export interface InviteEmployeeData {
-  email: string
-  first_name?: string
-  last_name?: string
-  role?: string
-  department_id?: string | null
-  location?: string
-  hire_date?: string
-  avatar_url?: string | null
 }
 
 async function callDeleteEmployeeFunction(employeeId: string, purge: boolean): Promise<void> {
@@ -156,16 +147,6 @@ export async function fetchEmployee(employeeId: string, workspaceId: string) {
   return data
 }
 
-export interface UpdateEmployeeData {
-  first_name?: string
-  last_name?: string
-  role?: string
-  department_id?: string | null
-  location?: string
-  hire_date?: string
-  avatar_url?: string | null
-}
-
 export async function updateEmployee(
   employeeId: string,
   data: UpdateEmployeeData,
@@ -202,4 +183,15 @@ export async function fetchEmployeeCounts(workspaceId: string) {
   })
 
   return counts
+}
+
+export async function fetchWorkspaceEmails(workspaceId: string): Promise<Set<string>> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("email")
+    .eq("workspace_id", workspaceId)
+    .neq("status", "deleted")
+
+  if (error) throw error
+  return new Set((data ?? []).map((p) => p.email.toLowerCase()))
 }

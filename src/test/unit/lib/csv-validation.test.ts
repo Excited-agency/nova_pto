@@ -10,9 +10,6 @@ function makeDeptMap(entries: [string, string][] = []) {
   return new Map<string, string>(entries)
 }
 
-function makeRaw(overrides: Record<string, string>) {
-  return [overrides]
-}
 
 describe("processRows — email validation", () => {
   const mapping = makeMapping(["Email", "First Name", "Last Name"])

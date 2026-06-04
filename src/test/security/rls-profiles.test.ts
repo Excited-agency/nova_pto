@@ -40,7 +40,7 @@ describe.skipIf(skipIfNoServiceKey())("RLS — profiles table (security hardenin
 
   describe("CRIT-1: Employee cannot self-promote to admin", () => {
     it("UPDATE profiles SET role=admin is blocked by WITH CHECK (get_my_role)", async () => {
-      const { data, error } = await employeeA.userClient
+      const { data } = await employeeA.userClient
         .from("profiles")
         .update({ role: "admin" })
         .eq("id", employeeA.userId)
@@ -61,7 +61,7 @@ describe.skipIf(skipIfNoServiceKey())("RLS — profiles table (security hardenin
 
   describe("CRIT-2: Employee cannot change their own workspace_id", () => {
     it("UPDATE profiles SET workspace_id=B is blocked", async () => {
-      const { data } = await employeeA.userClient
+      await employeeA.userClient
         .from("profiles")
         .update({ workspace_id: workspaceB.workspaceId })
         .eq("id", employeeA.userId)
@@ -108,7 +108,7 @@ describe.skipIf(skipIfNoServiceKey())("RLS — profiles table (security hardenin
 
   describe("CRIT-4: Admin cannot transfer employee to foreign workspace", () => {
     it("Admin UPDATE profiles SET workspace_id=foreign is blocked", async () => {
-      const { data } = await adminA.userClient
+      await adminA.userClient
         .from("profiles")
         .update({ workspace_id: workspaceB.workspaceId })
         .eq("id", employeeA.userId)

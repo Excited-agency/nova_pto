@@ -67,7 +67,7 @@ describe.skipIf(skipIfNoServiceKey())("Edge Function auth (EF-1..11)", () => {
     })
 
     it("EF-3: employee JWT (non-admin) → 403", async () => {
-      const { status, body } = await callEdgeFunction(
+      const { status } = await callEdgeFunction(
         "invite-employee",
         { email: "new@test.invalid", role: "user", hire_date: "2026-01-01", redirect_url: "http://localhost:5173" },
         employee.accessToken

@@ -90,7 +90,7 @@ describe.skipIf(skipIfNoServiceKey())("RLS — workspaces table (CRIT-8..11)", (
 
   describe("CRIT-11: Non-admin cannot update workspace", () => {
     it("Employee cannot UPDATE workspace name", async () => {
-      const { error } = await employeeInA.userClient
+      await employeeInA.userClient
         .from("workspaces")
         .update({ name: "Hacked Name" })
         .eq("id", ownerA.workspaceId)

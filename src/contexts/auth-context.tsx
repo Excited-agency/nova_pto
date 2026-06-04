@@ -4,30 +4,11 @@ import { supabase } from "@/lib/supabase"
 import { runFounderFlow } from "@/lib/founder-flow"
 import { addToast } from "@/lib/toast"
 import { AUTH_SAFETY_TIMEOUT } from "@/lib/constants"
-import type { EmployeeStatus } from "@/types/employee"
+import type { Profile } from "@/types/profile"
+import type { Workspace } from "@/types/workspace"
 
-interface Workspace {
-  id: string
-  name: string
-  logo_url?: string
-  owner_id: string
-  created_at: string
-}
-
-export interface Profile {
-  id: string
-  workspace_id: string
-  role: string
-  email: string
-  first_name?: string
-  last_name?: string
-  avatar_url?: string
-  status: EmployeeStatus
-  department_id?: string | null
-  location?: string
-  hire_date?: string
-  created_at: string
-}
+export type { Profile } from "@/types/profile"
+export type { Workspace } from "@/types/workspace"
 
 interface AuthContextType {
   user: User | null
@@ -100,11 +81,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    let { data: profileData, error: profileError } = await supabase
+    const { data: initialProfileData, error: profileError } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", userId)
       .maybeSingle()
+    let profileData = initialProfileData
 
     if (profileError) {
       throw new Error(`Failed to fetch profile: ${profileError.message}`)

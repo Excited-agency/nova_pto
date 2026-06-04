@@ -1,37 +1,11 @@
 import { useState, useEffect, useMemo } from "react"
 import { useNavigate, useParams } from "react-router-dom"
-import {
-  Users,
-  ChevronRight,
-  ChevronDown,
-  PencilLine,
-  UserMinus,
-  UserCheck,
-  Trash2,
-} from "lucide-react"
+import { Users, ChevronRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import { Badge } from "@/components/ui/badge"
-import { Avatar } from "@/components/ui/avatar"
 import { BreadcrumbItem } from "@/components/ui/breadcrumb-item"
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from "@/components/ui/popover"
-import { ComboboxMenu } from "@/components/ui/combobox-menu"
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogFooter,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from "@/components/ui/alert-dialog"
 
 import { useAuth } from "@/hooks/use-auth"
 import { useEmployee, useEmployeeStatusMutation, useDeleteEmployeeMutation } from "@/hooks/use-employees"
@@ -41,6 +15,7 @@ import { useDepartments } from "@/hooks/use-departments"
 import { addToast } from "@/lib/toast"
 import { formatDate } from "@/lib/date-utils"
 import { getDisplayName, getInitials } from "@/lib/utils"
+import { EmployeeInfoCard } from "@/components/employees/employee-info-card"
 
 export function EmployeeDetailsPage() {
   const navigate = useNavigate()
@@ -56,8 +31,6 @@ export function EmployeeDetailsPage() {
   const deleteMutation = useDeleteEmployeeMutation()
   const updateBalancesMutation = useUpdateEmployeeBalancesMutation()
 
-  const [actionsOpen, setActionsOpen] = useState(false)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [balanceValues, setBalanceValues] = useState<Record<string, string>>({})
   const [initialValues, setInitialValues] = useState<Record<string, string>>({})
 
@@ -223,174 +196,20 @@ export function EmployeeDetailsPage() {
       <div className="flex-1 overflow-y-auto">
         <div className="flex flex-col items-center gap-6 pt-6 pb-8 px-4">
           {/* Employee header */}
-          <div className="flex items-center gap-4 w-[600px]">
-            <Avatar
-              src={employee.avatar_url ?? undefined}
-              alt={displayName}
-              fallback={initials}
-              size="xl"
-              shape="square"
-            />
-            <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="text-lg font-semibold leading-7 tracking-tight text-foreground">
-                  {displayName || "—"}
-                </p>
-                <Badge variant={employee.role === "owner" ? "default" : "secondary"}>
-                  {employee.role === "owner" ? "Owner" : employee.role === "admin" ? "Admin" : "User"}
-                </Badge>
-              </div>
-              <p className="text-sm leading-5 tracking-tight text-muted-foreground">
-                {employee.email}
-              </p>
-            </div>
-
-            {/* Actions dropdown */}
-            {canManage && !isSelfView && (
-              <Popover open={actionsOpen} onOpenChange={setActionsOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="default">
-                    Actions
-                    <ChevronDown className="size-4" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="p-0 border-0 shadow-none">
-                  <ComboboxMenu
-                    groups={
-                      isSelfView
-                        ? isActive
-                          ? [
-                              {
-                                items: [
-                                  {
-                                    type: "icon",
-                                    icon: <UserMinus className="size-4" />,
-                                    label: "Deactivate",
-                                    onClick: () => {
-                                      setActionsOpen(false)
-                                      handleDeactivate()
-                                    },
-                                  },
-                                ],
-                              },
-                              {
-                                items: [
-                                  {
-                                    type: "icon",
-                                    variant: "destructive",
-                                    icon: <Trash2 className="size-4" />,
-                                    label: "Delete employee",
-                                    onClick: () => {
-                                      setActionsOpen(false)
-                                      setDeleteDialogOpen(true)
-                                    },
-                                  },
-                                ],
-                              },
-                            ]
-                          : [
-                              {
-                                items: [
-                                  {
-                                    type: "icon",
-                                    icon: <UserCheck className="size-4" />,
-                                    label: "Activate",
-                                    onClick: () => {
-                                      setActionsOpen(false)
-                                      handleActivate()
-                                    },
-                                  },
-                                ],
-                              },
-                              {
-                                items: [
-                                  {
-                                    type: "icon",
-                                    variant: "destructive",
-                                    icon: <Trash2 className="size-4" />,
-                                    label: "Delete employee",
-                                    onClick: () => {
-                                      setActionsOpen(false)
-                                      setDeleteDialogOpen(true)
-                                    },
-                                  },
-                                ],
-                              },
-                            ]
-                        : isActive
-                          ? [
-                              {
-                                items: [
-                                  {
-                                    type: "icon",
-                                    icon: <PencilLine className="size-4" />,
-                                    label: "Edit details",
-                                    onClick: () => {
-                                      setActionsOpen(false)
-                                      navigate(`/employees/${id}/edit`, { state: { from: "details" } })
-                                    },
-                                  },
-                                  {
-                                    type: "icon",
-                                    icon: <UserMinus className="size-4" />,
-                                    label: "Deactivate",
-                                    onClick: () => {
-                                      setActionsOpen(false)
-                                      handleDeactivate()
-                                    },
-                                  },
-                                ],
-                              },
-                              {
-                                items: [
-                                  {
-                                    type: "icon",
-                                    variant: "destructive",
-                                    icon: <Trash2 className="size-4" />,
-                                    label: "Delete employee",
-                                    onClick: () => {
-                                      setActionsOpen(false)
-                                      setDeleteDialogOpen(true)
-                                    },
-                                  },
-                                ],
-                              },
-                            ]
-                          : [
-                              {
-                                items: [
-                                  {
-                                    type: "icon",
-                                    icon: <UserCheck className="size-4" />,
-                                    label: "Activate",
-                                    onClick: () => {
-                                      setActionsOpen(false)
-                                      handleActivate()
-                                    },
-                                  },
-                                ],
-                              },
-                              {
-                                items: [
-                                  {
-                                    type: "icon",
-                                    variant: "destructive",
-                                    icon: <Trash2 className="size-4" />,
-                                    label: "Delete employee",
-                                    onClick: () => {
-                                      setActionsOpen(false)
-                                      setDeleteDialogOpen(true)
-                                    },
-                                  },
-                                ],
-                              },
-                            ]
-                    }
-                  />
-                </PopoverContent>
-              </Popover>
-            )}
-          </div>
+          <EmployeeInfoCard
+            displayName={displayName}
+            email={employee.email}
+            avatarUrl={employee.avatar_url}
+            initials={initials}
+            role={employee.role}
+            isActive={isActive}
+            canManage={canManage}
+            isSelfView={isSelfView}
+            onEdit={() => navigate(`/employees/${id}/edit`, { state: { from: "details" } })}
+            onDeactivate={handleDeactivate}
+            onActivate={handleActivate}
+            onDelete={handleDelete}
+          />
 
           {!isSelfView && !(viewerProfile?.role === "admin" && isViewedEmployeeOwner) && (
             <>
@@ -480,26 +299,6 @@ export function EmployeeDetailsPage() {
         </div>
       </div>
 
-      {/* Delete confirmation dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete employee</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete {displayName || employee.email}? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }

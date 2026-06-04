@@ -1,7 +1,6 @@
 import { useSyncExternalStore, useState, useEffect } from "react"
 import { CheckCircle2, AlertCircle, X } from "lucide-react"
-import { subscribe, getSnapshot, removeToast } from "@/lib/toast"
-import type { Toast } from "@/lib/toast"
+import { subscribe, getSnapshot, removeToast, type Toast  } from "@/lib/toast"
 
 const TOAST_HEIGHT = 88 // px — safe overestimate covering title + description
 const GAP = 8 // px gap between toasts when expanded

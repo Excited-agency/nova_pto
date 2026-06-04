@@ -13,7 +13,7 @@ describe.skipIf(skipIfNoServiceKey())("Cascade deletes (DB-18..24)", () => {
   describe("DB-18..21: DELETE workspace cascades to all child tables", () => {
     let ws: IsolatedWorkspace
     let catId: string
-    let deptId: string
+
     let reqId: string
     let balId: string
     let holidayId: string
@@ -21,13 +21,10 @@ describe.skipIf(skipIfNoServiceKey())("Cascade deletes (DB-18..24)", () => {
     beforeAll(async () => {
       ws = await createIsolatedWorkspace("admin")
 
-      // Department
-      const { data: dept } = await serviceClient
+      // Department (created to ensure workspace cascade covers departments table)
+      await serviceClient
         .from("departments")
         .insert({ workspace_id: ws.workspaceId, name: "Engineering" })
-        .select("id")
-        .single()
-      deptId = dept!.id
 
       // Category
       const { data: cat } = await serviceClient

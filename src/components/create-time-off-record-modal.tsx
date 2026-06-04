@@ -1,4 +1,7 @@
-import { useState, useEffect, useMemo } from "react"
+import { useEffect, useMemo } from "react"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
 import {
   Dialog,
   DialogContent,
@@ -28,25 +31,15 @@ import {
   useCreateTimeOffRecordMutation,
 } from "@/hooks/use-time-off-requests"
 import { addToast } from "@/lib/toast"
-import { calculateDays, formatDays, formatLocalDate } from "@/lib/date-utils"
+import { calculateDays, formatDays, formatLocalDate, isSameDay } from "@/lib/date-utils"
+import { getBalanceText } from "@/lib/balance-utils"
 import type { TimeOffCategory } from "@/types/time-off-category"
 import type { EmployeeBalance } from "@/types/employee-balance"
-import type { StartPeriod, EndPeriod } from "@/types/time-off-request"
 
 interface CreateTimeOffRecordModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   initialStartDate?: Date
-}
-
-function getBalanceText(
-  cat: TimeOffCategory,
-  balanceMap: Map<string, EmployeeBalance>
-): string {
-  if (cat.accrual_method === "unlimited") return "Unlimited"
-  const entry = balanceMap.get(cat.id)
-  if (entry) return `${entry.remaining_days} days`
-  return "—"
 }
 
 function isItemDisabled(
@@ -61,13 +54,17 @@ function isItemDisabled(
   return entry != null && entry.remaining_days <= 0
 }
 
-function isSameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  )
-}
+const createRecordSchema = z.object({
+  employeeId: z.string().min(1, "Employee is required"),
+  categoryId: z.string().min(1, "Category is required"),
+  startDate: z.date({ required_error: "Start date is required" }),
+  endDate: z.date({ required_error: "End date is required" }),
+  startPeriod: z.enum(["morning", "midday"]),
+  endPeriod: z.enum(["midday", "end_of_day"]),
+  comment: z.string(),
+})
+
+type CreateRecordFormData = z.infer<typeof createRecordSchema>
 
 export function CreateTimeOffRecordModal({
   open,
@@ -86,40 +83,55 @@ export function CreateTimeOffRecordModal({
     [holidayRows]
   )
 
-  const [employeeId, setEmployeeId] = useState<string | undefined>()
-  const [categoryId, setCategoryId] = useState<string | undefined>()
-  const [startDate, setStartDate] = useState<Date | undefined>()
-  const [endDate, setEndDate] = useState<Date | undefined>()
-  const [startPeriod, setStartPeriod] = useState<StartPeriod>("morning")
-  const [endPeriod, setEndPeriod] = useState<EndPeriod>("end_of_day")
-  const [comment, setComment] = useState("")
+  const { control, handleSubmit, reset, watch, setValue } = useForm<CreateRecordFormData>({
+    resolver: zodResolver(createRecordSchema),
+    defaultValues: {
+      employeeId: "",
+      categoryId: "",
+      startDate: undefined,
+      endDate: undefined,
+      startPeriod: "morning",
+      endPeriod: "end_of_day",
+      comment: "",
+    },
+  })
+
+  const employeeId = watch("employeeId")
+  const categoryId = watch("categoryId")
+  const startDate = watch("startDate")
+  const endDate = watch("endDate")
+  const startPeriod = watch("startPeriod")
+  const endPeriod = watch("endPeriod")
+  const comment = watch("comment")
 
   // Reset state when modal opens/closes
   useEffect(() => {
     if (open) {
       // Non-admins are always locked to their own profile
       if (!isAdmin && profile?.id) {
-        setEmployeeId(profile.id)
+        setValue("employeeId", profile.id)
       }
       // Pre-fill dates if an initial start date was provided
       if (initialStartDate) {
-        setStartDate(initialStartDate)
-        setEndDate(initialStartDate)
+        setValue("startDate", initialStartDate)
+        setValue("endDate", initialStartDate)
       }
     } else {
-      setEmployeeId(undefined)
-      setCategoryId(undefined)
-      setStartDate(undefined)
-      setEndDate(undefined)
-      setStartPeriod("morning")
-      setEndPeriod("end_of_day")
-      setComment("")
+      reset({
+        employeeId: "",
+        categoryId: "",
+        startDate: undefined,
+        endDate: undefined,
+        startPeriod: "morning",
+        endPeriod: "end_of_day",
+        comment: "",
+      })
     }
-  }, [open, initialStartDate, isAdmin, profile?.id])
+  }, [open, initialStartDate, isAdmin, profile?.id, reset, setValue])
 
   // Fetch all balances for the selected employee
   const { data: balances = [], isLoading: balancesLoading } =
-    useEmployeeBalances(employeeId)
+    useEmployeeBalances(employeeId || undefined)
 
   const balanceMap = useMemo(
     () => new Map(balances.map((b) => [b.category_id, b])),
@@ -161,9 +173,9 @@ export function CreateTimeOffRecordModal({
   useEffect(() => {
     const validValues = endPeriodOptions.map((o) => o.value)
     if (!validValues.includes(endPeriod)) {
-      setEndPeriod(validValues[0])
+      setValue("endPeriod", validValues[0])
     }
-  }, [endPeriodOptions, endPeriod])
+  }, [endPeriodOptions, endPeriod, setValue])
 
   // Calculate total days (fractional, excluding weekends & holidays)
   const totalDays = useMemo(() => {
@@ -198,18 +210,18 @@ export function CreateTimeOffRecordModal({
     !noBalance &&
     !balancesLoading
 
-  function handleSubmit() {
-    if (!isValid || !workspace || !employeeId || !categoryId || !startDate || !endDate) return
+  const onSubmit = handleSubmit((data) => {
+    if (!isValid || !workspace) return
 
     createMutation.mutate(
       {
         workspace_id: workspace.id,
-        employee_id: employeeId,
-        category_id: categoryId,
-        start_date: formatLocalDate(startDate),
-        end_date: formatLocalDate(endDate),
-        start_period: startPeriod,
-        end_period: endPeriod,
+        employee_id: data.employeeId,
+        category_id: data.categoryId,
+        start_date: formatLocalDate(data.startDate),
+        end_date: formatLocalDate(data.endDate),
+        start_period: data.startPeriod,
+        end_period: data.endPeriod,
         comment: comment.trim() || null,
       },
       {
@@ -229,7 +241,7 @@ export function CreateTimeOffRecordModal({
         },
       }
     )
-  }
+  })
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!createMutation.isPending) onOpenChange(v) }}>
@@ -246,94 +258,125 @@ export function CreateTimeOffRecordModal({
           {/* Employee — admin only */}
           {isAdmin && (
             <Field label="Employee">
-              <EmployeeCombobox
-                employees={employees}
-                value={employeeId}
-                onChange={setEmployeeId}
+              <Controller
+                name="employeeId"
+                control={control}
+                render={({ field }) => (
+                  <EmployeeCombobox
+                    employees={employees}
+                    value={field.value || undefined}
+                    onChange={(v) => field.onChange(v ?? "")}
+                  />
+                )}
               />
             </Field>
           )}
 
           {/* Time-off category */}
           <Field label="Time-off category">
-            <Select
-              value={categoryId}
-              onValueChange={setCategoryId}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select category" />
-              </SelectTrigger>
-              <SelectContent>
-                {activeCategories.map((cat) => {
-                  const disabled = isItemDisabled(cat, employeeId, balancesLoading, balanceMap)
-                  return (
-                    <SelectItem key={cat.id} value={cat.id} disabled={disabled}>
-                      <span className="flex w-full items-center justify-between gap-2">
-                        <span className="font-medium">{cat.emoji ? `${cat.name} ${cat.emoji}` : cat.name}</span>
-                        {employeeId && (
-                          <span className="ml-2 shrink-0 font-normal text-muted-foreground text-xs">
-                            {balancesLoading ? "..." : getBalanceText(cat, balanceMap)}
+            <Controller
+              name="categoryId"
+              control={control}
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activeCategories.map((cat) => {
+                      const disabled = isItemDisabled(cat, employeeId || undefined, balancesLoading, balanceMap)
+                      return (
+                        <SelectItem key={cat.id} value={cat.id} disabled={disabled}>
+                          <span className="flex w-full items-center justify-between gap-2">
+                            <span className="font-medium">{cat.emoji ? `${cat.name} ${cat.emoji}` : cat.name}</span>
+                            {employeeId && (
+                              <span className="ml-2 shrink-0 font-normal text-muted-foreground text-xs">
+                                {balancesLoading
+                                ? "..."
+                                : cat.accrual_method === "unlimited"
+                                  ? "Unlimited"
+                                  : getBalanceText(balanceMap.get(cat.id)?.remaining_days)}
+                              </span>
+                            )}
                           </span>
-                        )}
-                      </span>
-                    </SelectItem>
-                  )
-                })}
-              </SelectContent>
-            </Select>
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectContent>
+                </Select>
+              )}
+            />
           </Field>
 
           {/* From date + period */}
           <div className="flex flex-col gap-2">
             <div className="flex gap-3 items-end">
               <Field label="From" className="flex-1">
-                <DatePicker
-                  value={startDate}
-                  onChange={setStartDate}
-                  placeholder="Pick a date"
+                <Controller
+                  name="startDate"
+                  control={control}
+                  render={({ field }) => (
+                    <DatePicker
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Pick a date"
+                    />
+                  )}
                 />
               </Field>
               <div className="flex-1">
-                <Select
-                  value={startPeriod}
-                  onValueChange={(v) => setStartPeriod(v as StartPeriod)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="morning">Morning</SelectItem>
-                    <SelectItem value="midday">Midday</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Controller
+                  name="startPeriod"
+                  control={control}
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="morning">Morning</SelectItem>
+                        <SelectItem value="midday">Midday</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
               </div>
             </div>
 
             {/* To date + period */}
             <div className="flex gap-3 items-end">
               <Field label="To" className="flex-1">
-                <DatePicker
-                  value={endDate}
-                  onChange={setEndDate}
-                  placeholder="Pick a date"
+                <Controller
+                  name="endDate"
+                  control={control}
+                  render={({ field }) => (
+                    <DatePicker
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Pick a date"
+                    />
+                  )}
                 />
               </Field>
               <div className="flex-1">
-                <Select
-                  value={endPeriod}
-                  onValueChange={(v) => setEndPeriod(v as EndPeriod)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {endPeriodOptions.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Controller
+                  name="endPeriod"
+                  control={control}
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {endPeriodOptions.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
               </div>
             </div>
 
@@ -356,10 +399,16 @@ export function CreateTimeOffRecordModal({
 
           {/* Comment */}
           <Field label="Comment">
-            <Textarea
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="Type any extra information"
+            <Controller
+              name="comment"
+              control={control}
+              render={({ field }) => (
+                <Textarea
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="Type any extra information"
+                />
+              )}
             />
           </Field>
         </div>
@@ -369,7 +418,7 @@ export function CreateTimeOffRecordModal({
             Cancel
           </Button>
           <Button
-            onClick={handleSubmit}
+            onClick={onSubmit}
             disabled={!isValid}
             loading={createMutation.isPending}
           >

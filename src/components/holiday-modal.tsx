@@ -1,4 +1,7 @@
-import { useState, useEffect } from "react"
+import { useEffect } from "react"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
 import {
   Dialog,
   DialogContent,
@@ -28,6 +31,13 @@ function parseDateString(dateStr: string): Date {
   return new Date(year, month - 1, day)
 }
 
+const holidaySchema = z.object({
+  name: z.string().min(1, "Holiday name is required"),
+  date: z.date({ required_error: "Date is required" }),
+})
+
+type HolidayFormData = z.infer<typeof holidaySchema>
+
 export function HolidayModal({ open, onOpenChange, holiday }: HolidayModalProps) {
   const { workspace } = useAuth()
   const createMutation = useCreateHolidayMutation()
@@ -35,34 +45,31 @@ export function HolidayModal({ open, onOpenChange, holiday }: HolidayModalProps)
 
   const isEdit = !!holiday
 
-  const [name, setName] = useState("")
-  const [date, setDate] = useState<Date | undefined>(undefined)
+  const { register, handleSubmit, control, reset, formState: { isValid, isDirty } } = useForm<HolidayFormData>({
+    resolver: zodResolver(holidaySchema),
+    defaultValues: { name: "", date: undefined },
+    mode: "onChange",
+  })
 
   // Pre-fill on edit, reset on close
   useEffect(() => {
     if (open && holiday) {
-      setName(holiday.name)
-      setDate(parseDateString(holiday.date))
+      reset({ name: holiday.name, date: parseDateString(holiday.date) })
     } else if (!open) {
-      setName("")
-      setDate(undefined)
+      reset({ name: "", date: undefined })
     }
-  }, [open, holiday])
+  }, [open, holiday, reset])
 
-  const isValid = name.trim().length > 0 && date != null
-  const isDirty = isEdit
-    ? name.trim() !== holiday!.name || (date != null && formatLocalDate(date) !== holiday!.date)
-    : true
   const isPending = createMutation.isPending || updateMutation.isPending
 
-  function handleSubmit() {
-    if (!isValid || !workspace) return
+  const onSubmit = handleSubmit((data) => {
+    if (!workspace) return
 
-    const dateStr = formatLocalDate(date!)
+    const dateStr = formatLocalDate(data.date)
 
     if (isEdit) {
       updateMutation.mutate(
-        { holidayId: holiday!.id, data: { name: name.trim(), date: dateStr } },
+        { holidayId: holiday!.id, data: { name: data.name.trim(), date: dateStr } },
         {
           onSuccess: () => {
             addToast({ title: "Holiday updated" })
@@ -77,7 +84,7 @@ export function HolidayModal({ open, onOpenChange, holiday }: HolidayModalProps)
       createMutation.mutate(
         {
           workspace_id: workspace.id,
-          name: name.trim(),
+          name: data.name.trim(),
           date: dateStr,
           is_custom: true,
         },
@@ -92,7 +99,7 @@ export function HolidayModal({ open, onOpenChange, holiday }: HolidayModalProps)
         }
       )
     }
-  }
+  })
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -107,17 +114,22 @@ export function HolidayModal({ open, onOpenChange, holiday }: HolidayModalProps)
         <div className="flex flex-col gap-4">
           <Field label="Holiday Name">
             <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              {...register("name")}
               placeholder='e.g., "Company day"'
             />
           </Field>
 
           <Field label="Date">
-            <DatePicker
-              value={date}
-              onChange={setDate}
-              placeholder="Pick a date"
+            <Controller
+              name="date"
+              control={control}
+              render={({ field }) => (
+                <DatePicker
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="Pick a date"
+                />
+              )}
             />
           </Field>
         </div>
@@ -127,8 +139,8 @@ export function HolidayModal({ open, onOpenChange, holiday }: HolidayModalProps)
             Cancel
           </Button>
           <Button
-            onClick={handleSubmit}
-            disabled={!isValid || !isDirty}
+            onClick={onSubmit}
+            disabled={!isValid || (isEdit && !isDirty)}
             loading={isPending}
           >
             {isEdit ? "Save changes" : "Create holiday"}

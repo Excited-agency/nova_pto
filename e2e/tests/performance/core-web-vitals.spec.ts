@@ -15,7 +15,6 @@ test.describe("Core Web Vitals", () => {
   test("LCP on /requests is under 2500ms", async ({ page }) => {
     await seedSession(page, adminUser)
 
-    let lcp = 0
     await page.addInitScript(() => {
       new PerformanceObserver((list) => {
         const entries = list.getEntries()
@@ -28,7 +27,7 @@ test.describe("Core Web Vitals", () => {
     await page.waitForLoadState("networkidle")
     await page.waitForTimeout(500) // Allow LCP to settle
 
-    lcp = await page.evaluate(() => (window as any).__LCP__ ?? 0)
+    const lcp = await page.evaluate(() => (window as any).__LCP__ ?? 0)
     console.log(`LCP /requests: ${lcp}ms`)
     expect(lcp).toBeLessThan(2500)
   })

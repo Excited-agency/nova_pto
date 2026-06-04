@@ -6,9 +6,8 @@ import {
   updateHoliday,
   deleteHoliday,
   bulkDeleteHolidays,
-  replaceImportedHolidays,
+  replaceImportedHolidays, type ReplaceHolidayItem, type UpdateHolidayData 
 } from "@/lib/holiday-service"
-import type { ReplaceHolidayItem, UpdateHolidayData } from "@/lib/holiday-service"
 import type { CreateHolidayData } from "@/types/holiday"
 import { holidayKeys } from "@/lib/query-keys"
 

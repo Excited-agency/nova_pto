@@ -1,9 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react"
-import { cn, pluralize } from "@/lib/utils"
 import { useForm, useWatch, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
-import { Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { Input } from "@/components/ui/input"
@@ -18,12 +16,15 @@ import {
   SelectItem,
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { SwitchGroup } from "@/components/ui/switch-group"
 import {
   categoryFormSchema,
   type CategoryFormValues,
 } from "@/lib/category-form-schema"
 import { CATEGORY_COLORS } from "@/lib/category-colors"
+import { FormPageLayout } from "@/components/form-page-layout"
+import { pluralize } from "@/lib/utils"
+import { AccrualAmountField } from "@/components/categories/accrual-amount-field"
+import { CarryoverSection } from "@/components/categories/carryover-section"
 
 interface CategoryFormProps {
   mode: "add" | "edit"
@@ -110,7 +111,7 @@ export function CategoryForm({
     }
     // Reset the ref so next frequency change will clear accrual_day
     frequencyChangeRef.current = true
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     // Intentional: granting_frequency excluded — a separate useEffect below handles
     // it; including it here would cause a double-clear on simultaneous changes.
   }, [accrualMethod, setValue])
@@ -152,12 +153,10 @@ export function CategoryForm({
   }
 
   return (
-    <form
-      onSubmit={handleSubmit(onFormSubmit)}
-      className="flex flex-col gap-6 items-center pt-6 pb-8 px-4"
-    >
+    <form onSubmit={handleSubmit(onFormSubmit)}>
+      <FormPageLayout>
       {/* Title section */}
-      <div className="w-[600px] flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1.5">
         <h2 className="text-xl font-semibold leading-8 tracking-[-0.4px]">
           {title}
         </h2>
@@ -167,7 +166,7 @@ export function CategoryForm({
       </div>
 
       {/* Form fields */}
-      <div className="w-[600px] flex flex-col gap-6">
+      <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-4">
         {/* Category name + Colour */}
         <div className="grid grid-cols-2 gap-3">
@@ -243,238 +242,13 @@ export function CategoryForm({
 
         {/* Accrual section */}
         <div className="flex flex-col gap-4">
-        {/* Accrual method + Amount */}
-        <div className={cn(
-          "grid gap-3 items-end",
-          accrualMethod === "unlimited" ? "grid-cols-1" : "grid-cols-2"
-        )}>
-          <Controller
-            name="accrual_method"
+          <AccrualAmountField
             control={control}
-            render={({ field }) => (
-              <Field label="Accrual method">
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select method" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="fixed">Fixed amount</SelectItem>
-                    <SelectItem value="periodic">Periodic</SelectItem>
-                    <SelectItem value="anniversary">On anniversary</SelectItem>
-                    <SelectItem value="unlimited">Unlimited</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-            )}
+            accrualMethod={accrualMethod}
+            grantingFrequency={grantingFrequency}
+            amountValue={amountValue}
+            anniversaryYears={anniversaryYears}
           />
-
-          {/* Amount field — shown for non-unlimited, non-anniversary methods */}
-          {accrualMethod !== "unlimited" && accrualMethod !== "anniversary" && (
-            <Controller
-              name="amount_value"
-              control={control}
-              render={({ field }) => {
-                const isPeriodic = accrualMethod === "periodic"
-                const label = isPeriodic ? "Accrual rate" : "Amount"
-
-                return (
-                  <div className="flex flex-col gap-1.5">
-                    <div className="flex items-center gap-1">
-                      <label className="text-sm font-medium leading-5 tracking-[-0.28px]">
-                        {label}
-                      </label>
-                      {isPeriodic && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Info className="size-4 text-muted-foreground" />
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            E.g., 20 days per year equals 1.67 days per month
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3 w-full">
-                      <Input
-                        className="flex-1"
-                        type="number"
-                        min={0}
-                        step={isPeriodic ? "any" : 1}
-                        placeholder={isPeriodic ? "1.67" : "0"}
-                        value={field.value ?? ""}
-                        onChange={(e) => {
-                          const v = e.target.value
-                          field.onChange(v === "" ? null : Number(v))
-                        }}
-                        onBlur={field.onBlur}
-                      />
-                      <span className="text-sm leading-5 tracking-[-0.28px] text-foreground shrink-0 min-w-[34px] text-left">
-                        {pluralize(amountValue, "day", "days")}
-                      </span>
-                    </div>
-                  </div>
-                )
-              }}
-            />
-          )}
-
-          {/* Anniversary: inline row — [input] day(s) for every [input] year(s) */}
-          {accrualMethod === "anniversary" && (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium leading-5 tracking-[-0.28px]">Amount</label>
-              <div className="flex items-center gap-3 w-full">
-                <Controller
-                  name="amount_value"
-                  control={control}
-                  render={({ field }) => (
-                    <Input
-                      className="flex-1"
-                      type="number"
-                      min={1}
-                      step={1}
-                      placeholder="1"
-                      value={field.value ?? ""}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        field.onChange(v === "" ? null : Number(v))
-                      }}
-                      onBlur={field.onBlur}
-                    />
-                  )}
-                />
-                <span className="text-sm leading-5 tracking-[-0.28px] text-foreground shrink-0 min-w-[78px]">
-                  {pluralize(amountValue, "day", "days")} for every
-                </span>
-                <Controller
-                  name="anniversary_years"
-                  control={control}
-                  render={({ field }) => (
-                    <Input
-                      className="flex-1"
-                      type="number"
-                      min={1}
-                      step={1}
-                      placeholder="1"
-                      value={field.value ?? ""}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        field.onChange(v === "" ? null : Number(v))
-                      }}
-                      onBlur={field.onBlur}
-                    />
-                  )}
-                />
-                <span className="text-sm leading-5 tracking-[-0.28px] text-foreground shrink-0 min-w-[34px]">
-                  {pluralize(anniversaryYears, "year", "years")}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Fixed: Granting frequency */}
-        {accrualMethod === "fixed" && (
-          <Controller
-            name="granting_frequency"
-            control={control}
-            render={({ field }) => (
-              <Field label="Granting frequency">
-                <RadioGroup
-                  value={field.value ?? ""}
-                  onValueChange={field.onChange}
-                  className="w-full grid grid-cols-2 gap-3"
-                >
-                  <RadioGroupOption
-                    value="yearly"
-                    label="Yearly"
-                    variant="card"
-                  />
-                  <RadioGroupOption
-                    value="hire_anniversary"
-                    label="Hire anniversary"
-                    variant="card"
-                  />
-                </RadioGroup>
-              </Field>
-            )}
-          />
-        )}
-
-        {/* Periodic: Frequency select + Accrual day */}
-        {accrualMethod === "periodic" && (
-          <div className="grid grid-cols-2 gap-3">
-            <Controller
-              name="granting_frequency"
-              control={control}
-              render={({ field }) => (
-                <Field label="Frequency">
-                  <Select
-                    value={field.value ?? ""}
-                    onValueChange={field.onChange}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select frequency" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="weekly">Weekly</SelectItem>
-                      <SelectItem value="bi_weekly">Bi-weekly</SelectItem>
-                      <SelectItem value="monthly">Monthly</SelectItem>
-                      <SelectItem value="quarterly">Quarterly</SelectItem>
-                      <SelectItem value="yearly">Yearly</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-              )}
-            />
-            <Controller
-              name="accrual_day"
-              control={control}
-              render={({ field }) => {
-                const isWeekBased =
-                  grantingFrequency === "weekly" ||
-                  grantingFrequency === "bi_weekly"
-
-                const weekDays = [
-                  { value: "monday", label: "Monday" },
-                  { value: "tuesday", label: "Tuesday" },
-                  { value: "wednesday", label: "Wednesday" },
-                  { value: "thursday", label: "Thursday" },
-                  { value: "friday", label: "Friday" },
-                  { value: "saturday", label: "Saturday" },
-                  { value: "sunday", label: "Sunday" },
-                ]
-
-                const monthDays = [
-                  { value: "first_day_of_month", label: "First day of month" },
-                  { value: "last_day_of_month", label: "Last day of month" },
-                  { value: "hire_anniversary_day", label: "Hire anniversary day" },
-                ]
-
-                const options = isWeekBased ? weekDays : monthDays
-
-                return (
-                  <Field label="Accrual day">
-                    <Select
-                      value={field.value ?? ""}
-                      onValueChange={field.onChange}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select day" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {options.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                )
-              }}
-            />
-          </div>
-        )}
 
         {/* New hire rule */}
         <Controller
@@ -551,109 +325,23 @@ export function CategoryForm({
 
         {/* Carryover section — hidden for unlimited */}
         {accrualMethod !== "unlimited" && (
-          <div className="flex flex-col gap-4">
-          <Controller
-            name="carryover_limit_enabled"
+          <CarryoverSection
             control={control}
-            render={({ field }) => (
-              <SwitchGroup
-                label="Limit carryover"
-                description={
-                  accrualMethod === "anniversary"
-                    ? "Reset on anniversary"
-                    : "Define limits for unused days transfer and their expiration period"
-                }
-                checked={field.value}
-                onCheckedChange={(checked) => {
-                  field.onChange(checked)
-                  if (!checked) {
-                    setValue("carryover_max_days", null)
-                    setValue("carryover_expiration_value", null)
-                    setValue("carryover_expiration_unit", null)
-                  } else {
-                    setValue("carryover_expiration_unit", "year")
-                  }
-                }}
-              />
-            )}
+            setValue={setValue}
+            accrualMethod={accrualMethod}
+            carryoverEnabled={carryoverEnabled}
+            carryoverExpirationValue={carryoverExpirationValue}
           />
-
-          {carryoverEnabled && accrualMethod !== "anniversary" && (
-            <>
-              <Controller
-                name="carryover_max_days"
-                control={control}
-                render={({ field }) => (
-                  <Field label="Max days">
-                    <Input
-                      type="number"
-                      min={1}
-                      placeholder="0"
-                      value={field.value ?? ""}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        field.onChange(v === "" ? null : Number(v))
-                      }}
-                      onBlur={field.onBlur}
-                    />
-                  </Field>
-                )}
-              />
-
-              <Field label="Expiration">
-                <div className="grid grid-cols-2 gap-3 w-full">
-                  <Controller
-                    name="carryover_expiration_value"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        type="number"
-                        min={1}
-                        placeholder="0"
-                        value={field.value ?? ""}
-                        onChange={(e) => {
-                          const v = e.target.value
-                          field.onChange(v === "" ? null : Number(v))
-                        }}
-                        onBlur={field.onBlur}
-                      />
-                    )}
-                  />
-                  <Controller
-                    name="carryover_expiration_unit"
-                    control={control}
-                    render={({ field }) => (
-                      <Select
-                        value={field.value ?? ""}
-                        onValueChange={field.onChange}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select unit" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="month">{pluralize(carryoverExpirationValue, "Month", "Months")}</SelectItem>
-                          <SelectItem value="year">{pluralize(carryoverExpirationValue, "Year", "Years")}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                </div>
-              </Field>
-            </>
-          )}
-          </div>
         )}
       </div>
 
       {/* Error */}
       {submitError && (
-        <div className="w-[600px]">
-          <p className="text-sm text-destructive">{submitError}</p>
-        </div>
+        <p className="text-sm text-destructive">{submitError}</p>
       )}
 
       {/* Actions */}
-      <div className="w-[600px] flex items-center justify-between pt-3">
+      <div className="flex items-center justify-between pt-3">
         <Button type="button" variant="secondary" onClick={onCancel}>
           Cancel
         </Button>
@@ -678,6 +366,7 @@ export function CategoryForm({
           </Button>
         )}
       </div>
+      </FormPageLayout>
     </form>
   )
 }

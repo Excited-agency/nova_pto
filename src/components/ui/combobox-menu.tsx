@@ -7,8 +7,7 @@ import {
   type ComboboxMenuItemProps,
 } from "@/components/ui/combobox-menu-item"
 
-export interface ComboboxMenuItemData
-  extends Omit<ComboboxMenuItemProps, "className"> {}
+export type ComboboxMenuItemData = Omit<ComboboxMenuItemProps, "className">
 
 export interface ComboboxMenuGroupData {
   label?: string

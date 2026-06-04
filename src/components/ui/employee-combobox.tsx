@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react"
 import { Search, X } from "lucide-react"
 
-import { cn } from "@/lib/utils"
-import { getDisplayName, getInitials } from "@/lib/utils"
+import { cn, getDisplayName, getInitials  } from "@/lib/utils"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Avatar } from "@/components/ui/avatar"
 import type { ComboboxEmployee } from "@/lib/time-off-request-service"

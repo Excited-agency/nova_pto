@@ -25,3 +25,38 @@ export interface TimeOffRequest {
   created_at: string
   updated_at: string
 }
+
+export interface CreateTimeOffRecordParams {
+  workspace_id: string
+  employee_id: string
+  category_id: string
+  start_date: string
+  end_date: string
+  start_period?: "morning" | "midday"
+  end_period?: "midday" | "end_of_day"
+  comment?: string | null
+}
+
+export interface SubmitTimeOffRequestParams {
+  workspace_id: string
+  profile_id: string
+  category_id: string
+  start_date: string
+  end_date: string
+  start_period: "morning" | "midday"
+  end_period: "midday" | "end_of_day"
+  comment?: string | null
+  employee_name: string
+  employee_email: string
+  employee_avatar_url?: string | null
+  total_days: number
+  request_type: string
+}
+
+export interface ComboboxEmployee {
+  id: string
+  first_name?: string | null
+  last_name?: string | null
+  email: string
+  avatar_url?: string | null
+}

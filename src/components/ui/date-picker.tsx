@@ -2,7 +2,7 @@ import { useState, useMemo } from "react"
 import { CalendarIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { isBeforeDate } from "@/lib/date-utils"
+import { isBeforeDate, isSameDay } from "@/lib/date-utils"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { CalendarDayButton } from "@/components/ui/calendar-day-button"
 import { CalendarArrowButton } from "@/components/ui/calendar-arrow-button"
@@ -41,14 +41,6 @@ function formatMonthYear(year: number, month: number) {
     month: "long",
     year: "numeric",
   }).format(new Date(year, month, 1))
-}
-
-function isSameDay(a: Date, b: Date) {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  )
 }
 
 function DatePicker({

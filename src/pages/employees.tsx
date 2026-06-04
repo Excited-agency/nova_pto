@@ -1,29 +1,24 @@
-import { useState, useMemo, useEffect, useCallback, memo, startTransition } from "react"
+import { useState, useMemo, useEffect, useCallback, memo } from "react"
 import { useNavigate } from "react-router-dom"
 import {
   Users,
   UserPlus,
   UserSearch,
-  Search,
   Eye,
   PencilLine,
   UserMinus,
   UserCheck,
   Trash2,
   EllipsisIcon,
-  X,
-  Upload,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { TabGroup } from "@/components/ui/tab-group"
 import { DataTableHeaderCell } from "@/components/ui/data-table-header-cell"
 import { DataTableCell } from "@/components/ui/data-table-cell"
 import { Badge } from "@/components/ui/badge"
 import { Empty } from "@/components/ui/empty"
 import { DataTablePagination } from "@/components/ui/data-table-pagination"
-import { Input } from "@/components/ui/input"
 import { BreadcrumbItem } from "@/components/ui/breadcrumb-item"
 import {
   Popover,
@@ -54,11 +49,13 @@ import {
 } from "@/hooks/use-employees"
 import { useDepartments } from "@/hooks/use-departments"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
-import { cn, getInitials, getDisplayName } from "@/lib/utils"
+import { getInitials, getDisplayName } from "@/lib/utils"
 import { addToast } from "@/lib/toast"
 import { formatDate } from "@/lib/date-utils"
-import { employeeKeys, activeEmployeeKeys } from "@/lib/query-keys"
+import { employeeKeys } from "@/lib/query-keys"
 import { CsvImportModal } from "@/components/csv-import-modal"
+import { EmployeeFilters } from "@/components/employees/employee-filters"
+import { EmployeeBulkActionBar } from "@/components/employees/employee-bulk-action-bar"
 import type { EmployeeStatus } from "@/types/employee"
 
 type TabValue = EmployeeStatus
@@ -342,7 +339,7 @@ export function EmployeesPage() {
 
   // Apply search filter
   const filteredEmployees = useMemo(() => {
-    let list = employees as Profile[]
+    const list = employees as Profile[]
     if (!debouncedSearch.trim()) return list
     const q = debouncedSearch.toLowerCase()
     return list.filter(
@@ -376,16 +373,10 @@ export function EmployeesPage() {
   const somePageSelected =
     paginatedEmployees.some((e) => selectedIds.has(e.id)) && !allPageSelected
 
-  const tabItems = useMemo(() => [
-    { value: "active", label: "Active", badge: adjustedCounts.active || undefined },
-    { value: "inactive", label: "Inactive", badge: adjustedCounts.inactive || undefined },
-    { value: "deleted", label: "Deleted", badge: adjustedCounts.deleted || undefined },
-  ], [adjustedCounts.active, adjustedCounts.inactive, adjustedCounts.deleted])
-
   const handleToggleSelect = useCallback((id: string, checked: boolean) => {
     setSelectedIds((prev) => {
       const next = new Set(prev)
-      checked ? next.add(id) : next.delete(id)
+      if (checked) { next.add(id) } else { next.delete(id) }
       return next
     })
   }, [])
@@ -551,22 +542,13 @@ export function EmployeesPage() {
       {/* Body */}
       <div className="flex flex-col gap-5 p-4">
         {/* Controls */}
-        <div className="flex items-center justify-between">
-          <TabGroup
-            value={activeTab}
-            onValueChange={(v) => startTransition(() => setActiveTab(v as TabValue))}
-            items={tabItems}
-          />
-          <div className="relative w-[280px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <Input
-              placeholder="Search for employees..."
-              className="pl-9"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-        </div>
+        <EmployeeFilters
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          counts={adjustedCounts}
+        />
 
         {/* Table */}
         <div>
@@ -729,53 +711,14 @@ export function EmployeesPage() {
       </div>
 
       {/* Floating Bulk Action Bar */}
-      <div
-        className={cn(
-          "fixed bottom-6 left-1/2 -translate-x-1/2 z-50",
-          "flex items-center gap-1 p-1",
-          "bg-neutral-900 text-white rounded-xl shadow-2xl border border-white/10",
-          "transition-all duration-200 ease-out",
-          selectedIds.size > 0
-            ? "opacity-100 translate-y-0 pointer-events-auto"
-            : "opacity-0 translate-y-3 pointer-events-none"
-        )}
-      >
-        {/* Left: X icon + count — clicking clears selection */}
-        <button
-          onClick={handleClearSelection}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] hover:bg-white/10 transition-colors"
-        >
-          <X className="size-3.5 text-slate-300 shrink-0" />
-          <span className="text-sm font-medium whitespace-nowrap text-slate-300">{selectedIds.size} selected</span>
-        </button>
-
-        <div className="w-px h-4 bg-white/20 shrink-0 mx-1" />
-
-        {/* Deactivate (active tab only) */}
-        {activeTab === "active" && (
-          <>
-            <button
-              onClick={handleBulkDeactivate}
-              disabled={bulkMutation.isPending}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] hover:bg-white/10 transition-colors disabled:opacity-50 whitespace-nowrap"
-            >
-              <UserMinus className="size-3.5 text-slate-300 shrink-0" />
-              <span className="text-sm font-medium">Deactivate</span>
-            </button>
-            <div className="w-px h-4 bg-white/20 shrink-0 mx-1" />
-          </>
-        )}
-
-        {/* Delete */}
-        <button
-          onClick={() => setBulkDeleteOpen(true)}
-          disabled={bulkMutation.isPending}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] hover:bg-white/10 transition-colors disabled:opacity-50 whitespace-nowrap text-red-400 hover:text-red-300"
-        >
-          <Trash2 className="size-3.5 shrink-0" />
-          <span className="text-sm font-medium">Delete</span>
-        </button>
-      </div>
+      <EmployeeBulkActionBar
+        selectedCount={selectedIds.size}
+        activeTab={activeTab}
+        isMutationPending={bulkMutation.isPending}
+        onClearSelection={handleClearSelection}
+        onDeactivate={handleBulkDeactivate}
+        onDelete={() => setBulkDeleteOpen(true)}
+      />
 
       {/* Delete confirmation dialog */}
       <AlertDialog

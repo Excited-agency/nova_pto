@@ -8,15 +8,10 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Avatar } from "@/components/ui/avatar"
-import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { useRejectRequestMutation } from "@/hooks/use-time-off-requests"
-import { getInitials } from "@/lib/utils"
 import { addToast } from "@/lib/toast"
-import { formatDate, formatDays, formatPeriodLabel } from "@/lib/date-utils"
-import { getCategoryDisplay } from "@/lib/request-display"
-import { InfoRow } from "@/components/request-info-row"
+import { RequestDetailsSummary } from "@/components/request-details-summary"
 import type { TimeOffRequest } from "@/types/time-off-request"
 
 interface RejectTimeOffRequestModalProps {
@@ -36,10 +31,6 @@ export function RejectTimeOffRequestModal({
   const rejectMutation = useRejectRequestMutation()
 
   if (!request) return null
-
-  const nameParts = request.employee_name.split(" ")
-  const initials = getInitials(nameParts[0], nameParts.slice(1).join(" "))
-  const days = request.total_days
 
   function handleClose(open: boolean) {
     if (rejectMutation.isPending) return
@@ -78,54 +69,11 @@ export function RejectTimeOffRequestModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="bg-secondary rounded-xl p-4 flex flex-col gap-3">
-          <InfoRow label="Employee">
-            <Avatar
-              size="2xs"
-              shape="square"
-              src={request.employee_avatar_url}
-              alt={request.employee_name}
-              fallback={initials}
-            />
-            <span>{request.employee_name}</span>
-          </InfoRow>
-
-          <InfoRow label="Request type">
-            <span>{getCategoryDisplay(request, categoryMap)}</span>
-          </InfoRow>
-
-          <InfoRow label="From">
-            <span>{formatDate(request.start_date)}</span>
-            <span className="text-muted-foreground">
-              ({formatPeriodLabel(request.start_period)})
-            </span>
-          </InfoRow>
-
-          <InfoRow label="To">
-            <span>{formatDate(request.end_date)}</span>
-            <span className="text-muted-foreground">
-              ({formatPeriodLabel(request.end_period)})
-            </span>
-          </InfoRow>
-
-          <InfoRow label="Total">
-            <span>{formatDays(days)}</span>
-          </InfoRow>
-
-          {request.comment && (
-            <>
-              <Separator />
-              <div className="flex flex-col gap-1">
-                <span className="text-sm font-medium leading-5 tracking-[-0.28px] text-muted-foreground">
-                  Comment
-                </span>
-                <p className="text-sm font-medium leading-5 tracking-[-0.28px] text-foreground">
-                  {request.comment}
-                </p>
-              </div>
-            </>
-          )}
-        </div>
+        <RequestDetailsSummary
+          request={request}
+          categoryMap={categoryMap}
+          commentVisibility="if-present"
+        />
 
         <div className="flex flex-col gap-2">
           <label className="text-sm font-medium leading-5 tracking-[-0.28px] text-muted-foreground">

@@ -1,7 +1,9 @@
 import { supabase } from "@/lib/supabase"
-import type { TimeOffRequest, TimeOffStatus } from "@/types/time-off-request"
+import type { TimeOffRequest, TimeOffStatus, CreateTimeOffRecordParams, SubmitTimeOffRequestParams, ComboboxEmployee } from "@/types/time-off-request"
 import type { EmployeeBalance } from "@/types/employee-balance"
 import type { BalanceAdjustmentLog } from "@/types/balance-adjustment-log"
+
+export type { CreateTimeOffRecordParams, SubmitTimeOffRequestParams, ComboboxEmployee } from "@/types/time-off-request"
 
 export async function fetchTimeOffRequests(workspaceId: string) {
   const { data, error } = await supabase
@@ -66,17 +68,6 @@ export async function bulkUpdateEmployeeBalances(
   })
 
   if (error) throw error
-}
-
-export interface CreateTimeOffRecordParams {
-  workspace_id: string
-  employee_id: string
-  category_id: string
-  start_date: string
-  end_date: string
-  start_period?: "morning" | "midday"
-  end_period?: "midday" | "end_of_day"
-  comment?: string | null
 }
 
 export async function createTimeOffRecord(params: CreateTimeOffRecordParams) {
@@ -157,14 +148,6 @@ export async function approveTimeOffRequest(requestId: string) {
   return data
 }
 
-export interface ComboboxEmployee {
-  id: string
-  first_name?: string | null
-  last_name?: string | null
-  email: string
-  avatar_url?: string | null
-}
-
 export async function withdrawTimeOffRequest(requestId: string, workspaceId: string) {
   const { data, error } = await supabase
     .from("time_off_requests")
@@ -194,22 +177,6 @@ export async function fetchMyTimeOffRequests(profileId: string, workspaceId: str
 
   if (error) throw error
   return (data ?? []) as TimeOffRequest[]
-}
-
-export interface SubmitTimeOffRequestParams {
-  workspace_id: string
-  profile_id: string
-  category_id: string
-  start_date: string
-  end_date: string
-  start_period: "morning" | "midday"
-  end_period: "midday" | "end_of_day"
-  comment?: string | null
-  employee_name: string
-  employee_email: string
-  employee_avatar_url?: string | null
-  total_days: number
-  request_type: string
 }
 
 export async function submitTimeOffRequest(params: SubmitTimeOffRequestParams) {

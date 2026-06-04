@@ -44,7 +44,7 @@ export function ImportPreviewPage() {
   const state = location.state as ImportPreviewState | null
   const rows = state?.rows ?? []
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   // Intentional: router state is stable for the lifetime of this page visit;
   // empty deps ensures the Map is built once so the selectedIndices initializer
   // references a stable object.

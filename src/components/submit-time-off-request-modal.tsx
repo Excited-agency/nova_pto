@@ -1,4 +1,7 @@
-import { useState, useEffect, useMemo } from "react"
+import { useEffect, useMemo } from "react"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
 import {
   Dialog,
   DialogContent,
@@ -23,32 +26,12 @@ import { useHolidays } from "@/hooks/use-holidays"
 import { useTimeOffCategories } from "@/hooks/use-time-off-categories"
 import { useEmployeeBalances, useSubmitTimeOffRequestMutation } from "@/hooks/use-time-off-requests"
 import { addToast } from "@/lib/toast"
-import { calculateDays, formatDays, formatLocalDate, isBeforeDate } from "@/lib/date-utils"
-import type { TimeOffCategory } from "@/types/time-off-category"
-import type { EmployeeBalance } from "@/types/employee-balance"
-import type { StartPeriod, EndPeriod } from "@/types/time-off-request"
+import { calculateDays, formatDays, formatLocalDate, isBeforeDate, isSameDay } from "@/lib/date-utils"
+import { getBalanceText } from "@/lib/balance-utils"
 
 interface SubmitTimeOffRequestModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-}
-
-function getBalanceText(
-  cat: TimeOffCategory,
-  balanceMap: Map<string, EmployeeBalance>
-): string {
-  if (cat.accrual_method === "unlimited") return "Unlimited"
-  const entry = balanceMap.get(cat.id)
-  if (entry) return `${entry.remaining_days} days`
-  return "—"
-}
-
-function isSameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  )
 }
 
 function mapRequestType(categoryName: string): string {
@@ -60,6 +43,17 @@ function mapRequestType(categoryName: string): string {
     default: return "other"
   }
 }
+
+const submitRequestSchema = z.object({
+  categoryId: z.string().min(1, "Category is required"),
+  startDate: z.date({ required_error: "Start date is required" }),
+  endDate: z.date({ required_error: "End date is required" }),
+  startPeriod: z.enum(["morning", "midday"]),
+  endPeriod: z.enum(["midday", "end_of_day"]),
+  comment: z.string(),
+})
+
+type SubmitRequestFormData = z.infer<typeof submitRequestSchema>
 
 export function SubmitTimeOffRequestModal({
   open,
@@ -75,23 +69,37 @@ export function SubmitTimeOffRequestModal({
 
   const holidayDates = useMemo(() => holidayRows.map((h) => h.date), [holidayRows])
 
-  const [categoryId, setCategoryId] = useState<string | undefined>()
-  const [startDate, setStartDate] = useState<Date | undefined>()
-  const [endDate, setEndDate] = useState<Date | undefined>()
-  const [startPeriod, setStartPeriod] = useState<StartPeriod>("morning")
-  const [endPeriod, setEndPeriod] = useState<EndPeriod>("end_of_day")
-  const [comment, setComment] = useState("")
+  const { control, handleSubmit, reset, watch, setValue } = useForm<SubmitRequestFormData>({
+    resolver: zodResolver(submitRequestSchema),
+    defaultValues: {
+      categoryId: "",
+      startDate: undefined,
+      endDate: undefined,
+      startPeriod: "morning",
+      endPeriod: "end_of_day",
+      comment: "",
+    },
+  })
+
+  const categoryId = watch("categoryId")
+  const startDate = watch("startDate")
+  const endDate = watch("endDate")
+  const startPeriod = watch("startPeriod")
+  const endPeriod = watch("endPeriod")
+  const comment = watch("comment")
 
   useEffect(() => {
     if (!open) {
-      setCategoryId(undefined)
-      setStartDate(undefined)
-      setEndDate(undefined)
-      setStartPeriod("morning")
-      setEndPeriod("end_of_day")
-      setComment("")
+      reset({
+        categoryId: "",
+        startDate: undefined,
+        endDate: undefined,
+        startPeriod: "morning",
+        endPeriod: "end_of_day",
+        comment: "",
+      })
     }
-  }, [open])
+  }, [open, reset])
 
   const { data: balances = [] } = useEmployeeBalances(profile?.id)
 
@@ -129,9 +137,9 @@ export function SubmitTimeOffRequestModal({
   useEffect(() => {
     const validValues = endPeriodOptions.map((o) => o.value)
     if (!validValues.includes(endPeriod)) {
-      setEndPeriod(validValues[0])
+      setValue("endPeriod", validValues[0])
     }
-  }, [endPeriodOptions, endPeriod])
+  }, [endPeriodOptions, endPeriod, setValue])
 
   const totalDays = useMemo(() => {
     if (!startDate || !endDate) return null
@@ -164,8 +172,8 @@ export function SubmitTimeOffRequestModal({
     totalDays != null && totalDays > 0 &&
     !hasPastDates
 
-  function handleSubmit() {
-    if (!isValid || !profile || !workspace || !categoryId || !startDate || !endDate || totalDays == null) return
+  const onSubmit = handleSubmit((data) => {
+    if (!isValid || !profile || !workspace || totalDays == null) return
 
     const employeeName = [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.email
 
@@ -173,11 +181,11 @@ export function SubmitTimeOffRequestModal({
       {
         workspace_id: workspace.id,
         profile_id: profile.id,
-        category_id: categoryId,
-        start_date: formatLocalDate(startDate),
-        end_date: formatLocalDate(endDate),
-        start_period: startPeriod,
-        end_period: endPeriod,
+        category_id: data.categoryId,
+        start_date: formatLocalDate(data.startDate),
+        end_date: formatLocalDate(data.endDate),
+        start_period: data.startPeriod,
+        end_period: data.endPeriod,
         total_days: totalDays,
         employee_name: employeeName,
         employee_email: profile.email,
@@ -202,7 +210,7 @@ export function SubmitTimeOffRequestModal({
         },
       }
     )
-  }
+  })
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!submitMutation.isPending) onOpenChange(v) }}>
@@ -217,80 +225,106 @@ export function SubmitTimeOffRequestModal({
         <div className="flex flex-col gap-4">
           {/* Time-off category */}
           <Field label="Time-off category">
-            <Select value={categoryId} onValueChange={setCategoryId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select category" />
-              </SelectTrigger>
-              <SelectContent>
-                {activeCategories.map((cat) => (
-                  <SelectItem key={cat.id} value={cat.id}>
-                    <span className="flex w-full items-center justify-between gap-2">
-                      <span className="font-medium">
-                        {cat.emoji ? `${cat.name} ${cat.emoji}` : cat.name}
-                      </span>
-                      <span className="ml-2 shrink-0 font-normal text-muted-foreground text-xs">
-                        {getBalanceText(cat, balanceMap)}
-                      </span>
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Controller
+              name="categoryId"
+              control={control}
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activeCategories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        <span className="flex w-full items-center justify-between gap-2">
+                          <span className="font-medium">
+                            {cat.emoji ? `${cat.name} ${cat.emoji}` : cat.name}
+                          </span>
+                          <span className="ml-2 shrink-0 font-normal text-muted-foreground text-xs">
+                            {cat.accrual_method === "unlimited"
+                              ? "Unlimited"
+                              : getBalanceText(balanceMap.get(cat.id)?.remaining_days)}
+                          </span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
           </Field>
 
           {/* From date + period */}
           <div className="flex flex-col gap-2">
             <div className="flex gap-3 items-end">
               <Field label="From" className="flex-1">
-                <DatePicker
-                  value={startDate}
-                  onChange={setStartDate}
-                  placeholder="Pick a date"
-                  minDate={minDate}
+                <Controller
+                  name="startDate"
+                  control={control}
+                  render={({ field }) => (
+                    <DatePicker
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Pick a date"
+                      minDate={minDate}
+                    />
+                  )}
                 />
               </Field>
               <div className="flex-1">
-                <Select
-                  value={startPeriod}
-                  onValueChange={(v) => setStartPeriod(v as StartPeriod)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="morning">Morning</SelectItem>
-                    <SelectItem value="midday">Midday</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Controller
+                  name="startPeriod"
+                  control={control}
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="morning">Morning</SelectItem>
+                        <SelectItem value="midday">Midday</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
               </div>
             </div>
 
             {/* To date + period */}
             <div className="flex gap-3 items-end">
               <Field label="To" className="flex-1">
-                <DatePicker
-                  value={endDate}
-                  onChange={setEndDate}
-                  placeholder="Pick a date"
-                  minDate={minDate}
+                <Controller
+                  name="endDate"
+                  control={control}
+                  render={({ field }) => (
+                    <DatePicker
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Pick a date"
+                      minDate={minDate}
+                    />
+                  )}
                 />
               </Field>
               <div className="flex-1">
-                <Select
-                  value={endPeriod}
-                  onValueChange={(v) => setEndPeriod(v as EndPeriod)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {endPeriodOptions.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Controller
+                  name="endPeriod"
+                  control={control}
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {endPeriodOptions.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
               </div>
             </div>
 
@@ -314,10 +348,16 @@ export function SubmitTimeOffRequestModal({
 
           {/* Comment */}
           <Field label="Comment">
-            <Textarea
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="Add a note for your manager (optional)"
+            <Controller
+              name="comment"
+              control={control}
+              render={({ field }) => (
+                <Textarea
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="Add a note for your manager (optional)"
+                />
+              )}
             />
           </Field>
         </div>
@@ -327,7 +367,7 @@ export function SubmitTimeOffRequestModal({
             Cancel
           </Button>
           <Button
-            onClick={handleSubmit}
+            onClick={onSubmit}
             disabled={!isValid}
             loading={submitMutation.isPending}
           >

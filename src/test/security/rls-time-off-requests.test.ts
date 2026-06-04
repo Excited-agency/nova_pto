@@ -15,7 +15,7 @@ describe.skipIf(skipIfNoServiceKey())("RLS — time_off_requests table (CRIT-12.
   let employeeA: IsolatedWorkspace
   let employeeB: IsolatedWorkspace
   let workspaceB: IsolatedWorkspace
-  let pendingRequestA: { id: string }
+  let _pendingRequestA: { id: string }
   let pendingRequestB: { id: string }
 
   beforeAll(async () => {
@@ -35,7 +35,7 @@ describe.skipIf(skipIfNoServiceKey())("RLS — time_off_requests table (CRIT-12.
       .in("id", [employeeA.userId, employeeB.userId])
 
     // Seed pending requests
-    ;[pendingRequestA, pendingRequestB] = await Promise.all([
+    ;[_pendingRequestA, pendingRequestB] = await Promise.all([
       seedPendingRequest(employeeA.userId, adminA.workspaceId),
       seedPendingRequest(employeeB.userId, adminA.workspaceId),
     ])

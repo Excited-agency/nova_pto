@@ -1,4 +1,7 @@
 import { useState, useMemo, useEffect } from "react"
+import { useForm, Controller } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
 import { CloudUpload, User } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -20,6 +23,7 @@ import { LocationCombobox } from "@/components/ui/location-combobox"
 import { useDepartments } from "@/hooks/use-departments"
 import { useImageUpload } from "@/hooks/use-image-upload"
 import { getInitials, getDisplayName } from "@/lib/utils"
+import { FormPageLayout } from "@/components/form-page-layout"
 
 export interface EmployeeFormData {
   email: string
@@ -33,6 +37,18 @@ export interface EmployeeFormData {
   avatarPreview: string | null
   avatarRemoved: boolean
 }
+
+const employeeFormSchema = z.object({
+  email: z.string().min(1, "Email is required").email("Please enter a valid email"),
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  departmentId: z.string().min(1, "Department is required"),
+  role: z.string().min(1, "Role is required"),
+  location: z.string().min(1, "Location is required"),
+  startDate: z.date({ required_error: "Start date is required" }),
+})
+
+type EmployeeFormValues = z.infer<typeof employeeFormSchema>
 
 interface EmployeeFormProps {
   mode: "add" | "edit"
@@ -64,19 +80,10 @@ export function EmployeeForm({
   onCancel,
   onDirtyChange,
 }: EmployeeFormProps) {
-  // Form state
-  const [email, setEmail] = useState(initialData?.email ?? "")
-  const [firstName, setFirstName] = useState(initialData?.firstName ?? "")
-  const [lastName, setLastName] = useState(initialData?.lastName ?? "")
-  const [departmentId, setDepartmentId] = useState(initialData?.departmentId ?? "")
-  const [role, setRole] = useState(initialData?.role ?? "user")
-  const [location, setLocation] = useState(initialData?.location ?? "")
-  const [startDate, setStartDate] = useState<Date | undefined>(initialData?.startDate)
-
   // Track whether user removed the existing avatar (edit mode)
   const [avatarRemoved, setAvatarRemoved] = useState(false)
 
-  // File upload
+  // File upload — managed outside RHF (not a standard input)
   const {
     file: avatarFile,
     preview: avatarPreview,
@@ -93,39 +100,55 @@ export function EmployeeForm({
 
   // UI state
   const { data: departments = [] } = useDepartments()
-  const [submitting, setSubmitting] = useState(false)
-  const [emailError, setEmailError] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    watch,
+    formState: { isValid, isDirty: rhfIsDirty, isSubmitting, errors },
+  } = useForm<EmployeeFormValues>({
+    resolver: zodResolver(employeeFormSchema),
+    defaultValues: {
+      email: initialData?.email ?? "",
+      firstName: initialData?.firstName ?? "",
+      lastName: initialData?.lastName ?? "",
+      departmentId: initialData?.departmentId ?? "",
+      role: initialData?.role ?? "user",
+      location: initialData?.location ?? "",
+      startDate: initialData?.startDate,
+    },
+    mode: "onChange",
+  })
+
+  const firstName = watch("firstName")
+  const lastName = watch("lastName")
+  const role = watch("role")
+  const email = watch("email")
+  const departmentId = watch("departmentId")
+  const location = watch("location")
+  const startDate = watch("startDate")
 
   // Snapshot initial values once on mount (edit mode only)
   const initialSnapshot = useMemo(() => {
     if (mode !== "edit" || !initialData) return null
     return {
-      firstName: initialData.firstName,
-      lastName: initialData.lastName,
-      departmentId: initialData.departmentId,
-      role: initialData.role,
-      location: initialData.location,
-      startDate: initialData.startDate?.getTime(),
       avatarUrl: initialData.avatarUrl ?? null,
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
     // Intentional: snapshot initialData once on mount — re-running when props change
     // would reset the dirty-check baseline mid-edit.
   }, [])
 
+  // Combine RHF dirty state with image dirty state
   const isDirty = useMemo(() => {
-    if (!initialSnapshot) return true // add mode — always "dirty" if valid
-    if (firstName.trim() !== initialSnapshot.firstName) return true
-    if (lastName.trim() !== initialSnapshot.lastName) return true
-    if (departmentId !== initialSnapshot.departmentId) return true
-    if (role !== initialSnapshot.role) return true
-    if (location !== initialSnapshot.location) return true
-    if ((startDate?.getTime() ?? undefined) !== initialSnapshot.startDate) return true
+    if (mode === "add") return true // add mode — always "dirty" if valid
+    if (rhfIsDirty) return true
     if (avatarFile !== null) return true
-    if (avatarRemoved && initialSnapshot.avatarUrl !== null) return true
+    if (avatarRemoved && (initialSnapshot?.avatarUrl ?? null) !== null) return true
     return false
-  }, [firstName, lastName, departmentId, role, location, startDate, avatarFile, avatarRemoved, initialSnapshot])
+  }, [mode, rhfIsDirty, avatarFile, avatarRemoved, initialSnapshot])
 
   useEffect(() => {
     onDirtyChange?.(isDirty)
@@ -134,15 +157,7 @@ export function EmployeeForm({
   const displayName = getDisplayName(firstName, lastName)
 
   const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
-
-  const isValid =
-    isValidEmail &&
-    firstName.trim().length > 0 &&
-    lastName.trim().length > 0 &&
-    departmentId.length > 0 &&
-    role.length > 0 &&
-    location.trim().length > 0 &&
-    startDate !== undefined
+  const emailError = errors.email != null
 
   const saveTooltip = useMemo(() => {
     const allFieldsFilled =
@@ -166,15 +181,6 @@ export function EmployeeForm({
     return undefined
   }, [mode, isValid, isValidEmail, fileError, isDirty, firstName, lastName, departmentId, role, location, startDate, email])
 
-  function handleEmailBlur() {
-    const trimmed = email.trim()
-    if (trimmed.length === 0) {
-      setEmailError(false)
-      return
-    }
-    setEmailError(!isValidEmail)
-  }
-
   const initials = getInitials(firstName, lastName)
 
   const avatarFallback = useMemo(() => {
@@ -182,40 +188,31 @@ export function EmployeeForm({
     return <User className="size-6 text-muted-foreground" />
   }, [initials])
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!isValid || submitting) return
-
-    setSubmitting(true)
+  const onFormSubmit = handleSubmit(async (data) => {
     setError(null)
-
     try {
       await onSubmit({
-        email: email.trim(),
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        departmentId,
-        role,
-        location,
-        startDate,
+        email: data.email.trim(),
+        firstName: data.firstName.trim(),
+        lastName: data.lastName.trim(),
+        departmentId: data.departmentId,
+        role: data.role,
+        location: data.location,
+        startDate: data.startDate,
         avatarFile,
         avatarPreview,
         avatarRemoved,
       })
     } catch (err) {
       setError((err as Error).message)
-    } finally {
-      setSubmitting(false)
     }
-  }
+  })
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="flex flex-col gap-6 items-center pt-6 pb-8 px-4"
-    >
+    <form onSubmit={onFormSubmit}>
+      <FormPageLayout>
       {/* Title section */}
-      <div className="w-[600px] flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1.5">
         <h2 className="text-xl font-semibold leading-8 tracking-[-0.4px]">
           {title}
         </h2>
@@ -225,7 +222,7 @@ export function EmployeeForm({
       </div>
 
       {/* Form fields */}
-      <div className="w-[600px] flex flex-col gap-4">
+      <div className="flex flex-col gap-4">
         {/* Work email */}
         <Field label="Work email" invalid={emailError}>
           {mode === "edit" ? (
@@ -246,10 +243,8 @@ export function EmployeeForm({
             <Input
               type="email"
               placeholder="example@company.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onBlur={handleEmailBlur}
               aria-invalid={emailError}
+              {...register("email")}
             />
           )}
           {emailError && (
@@ -264,33 +259,37 @@ export function EmployeeForm({
           <Field label="First name">
             <Input
               placeholder="First name"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
+              {...register("firstName")}
             />
           </Field>
           <Field label="Last name">
             <Input
               placeholder="Last name"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
+              {...register("lastName")}
             />
           </Field>
         </div>
 
         {/* Department */}
         <Field label="Department">
-          <Select value={departmentId} onValueChange={setDepartmentId}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select department" />
-            </SelectTrigger>
-            <SelectContent>
-              {departments.map((d) => (
-                <SelectItem key={d.id} value={d.id}>
-                  {d.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Controller
+            name="departmentId"
+            control={control}
+            render={({ field }) => (
+              <Select value={field.value} onValueChange={field.onChange}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select department" />
+                </SelectTrigger>
+                <SelectContent>
+                  {departments.map((d) => (
+                    <SelectItem key={d.id} value={d.id}>
+                      {d.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
         </Field>
 
         {/* Photo */}
@@ -349,41 +348,59 @@ export function EmployeeForm({
               <span className="text-sm font-medium text-foreground">Owner</span>
             </div>
           ) : (
-            <RadioGroup
-              value={role}
-              onValueChange={setRole}
-              className="w-full grid grid-cols-2 gap-3"
-            >
-              <RadioGroupOption
-                value="user"
-                label="User"
-                description="Request and track personal time off"
-                variant="card"
-              />
-              <RadioGroupOption
-                value="admin"
-                label="Admin"
-                description="Manage team and workspace settings"
-                variant="card"
-              />
-            </RadioGroup>
+            <Controller
+              name="role"
+              control={control}
+              render={({ field }) => (
+                <RadioGroup
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  className="w-full grid grid-cols-2 gap-3"
+                >
+                  <RadioGroupOption
+                    value="user"
+                    label="User"
+                    description="Request and track personal time off"
+                    variant="card"
+                  />
+                  <RadioGroupOption
+                    value="admin"
+                    label="Admin"
+                    description="Manage team and workspace settings"
+                    variant="card"
+                  />
+                </RadioGroup>
+              )}
+            />
           )}
         </Field>
 
         {/* Start date / Location */}
         <div className="grid grid-cols-2 gap-3">
           <Field label="Start date">
-            <DatePicker
-              value={startDate}
-              onChange={setStartDate}
-              placeholder="Pick a date"
+            <Controller
+              name="startDate"
+              control={control}
+              render={({ field }) => (
+                <DatePicker
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="Pick a date"
+                />
+              )}
             />
           </Field>
           <Field label="Location">
-            <LocationCombobox
-              value={location}
-              onChange={setLocation}
-              placeholder="Type location"
+            <Controller
+              name="location"
+              control={control}
+              render={({ field }) => (
+                <LocationCombobox
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="Type location"
+                />
+              )}
             />
           </Field>
         </div>
@@ -391,11 +408,11 @@ export function EmployeeForm({
 
       {/* Error message */}
       {error && (
-        <p className="w-[600px] text-sm text-destructive">{error}</p>
+        <p className="text-sm text-destructive">{error}</p>
       )}
 
       {/* Actions */}
-      <div className="w-[600px] flex items-center justify-between pt-3">
+      <div className="flex items-center justify-between pt-3">
         <Button
           type="button"
           variant="secondary"
@@ -410,7 +427,7 @@ export function EmployeeForm({
                 <Button
                   type="submit"
                   disabled
-                  loading={submitting}
+                  loading={isSubmitting}
                 >
                   {submitLabel}
                 </Button>
@@ -422,12 +439,13 @@ export function EmployeeForm({
           <Button
             type="submit"
             disabled={!isValid || !!fileError || !isDirty}
-            loading={submitting}
+            loading={isSubmitting}
           >
             {submitLabel}
           </Button>
         )}
       </div>
+      </FormPageLayout>
     </form>
   )
 }

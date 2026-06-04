@@ -3,8 +3,7 @@ import Papa from "papaparse"
 import { useQueryClient } from "@tanstack/react-query"
 import { useAuth } from "@/hooks/use-auth"
 import { useDepartments } from "@/hooks/use-departments"
-import { inviteEmployee } from "@/lib/employee-service"
-import { supabase } from "@/lib/supabase"
+import { inviteEmployee, fetchWorkspaceEmails } from "@/lib/employee-service"
 import { mapHeaders } from "@/lib/csv-header-mapping"
 import { processRows, rowHasErrors } from "@/lib/csv-validation"
 import { employeeKeys, departmentKeys, activeEmployeeKeys } from "@/lib/query-keys"
@@ -142,14 +141,7 @@ export function useCsvImport() {
         // Fetch existing workspace emails to detect duplicates
         let existingEmails: Set<string> | undefined
         if (workspace) {
-          const { data: profiles } = await supabase
-            .from("profiles")
-            .select("email")
-            .eq("workspace_id", workspace.id)
-            .neq("status", "deleted")
-          if (profiles) {
-            existingEmails = new Set(profiles.map((p) => p.email.toLowerCase()))
-          }
+          existingEmails = await fetchWorkspaceEmails(workspace.id)
         }
 
         const { rows, validations: rowValidations } = processRows({

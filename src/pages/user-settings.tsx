@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query"
 
 import { useAuth } from "@/hooks/use-auth"
 import { useNavigationGuard } from "@/contexts/navigation-guard-context"
-import { validateImageFile } from "@/lib/utils"
+import { validateImageFile, getInitials  } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { Input } from "@/components/ui/input"
@@ -18,7 +18,6 @@ import {
   removeImage,
 } from "@/lib/settings-service"
 import { employeeKeys } from "@/lib/query-keys"
-import { getInitials } from "@/lib/utils"
 import { addToast } from "@/lib/toast"
 
 interface InitialValues {

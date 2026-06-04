@@ -1,45 +1,22 @@
 import { supabase } from "@/lib/supabase"
-import type { CategoryColor } from "@/lib/category-colors"
 import type {
   TimeOffCategory,
-  LeaveType,
-  AccrualMethod,
-  GrantingFrequency,
-  NewHireRule,
-  PeriodUnit,
+  CreateCategoryData,
+  UpdateCategoryData,
 } from "@/types/time-off-category"
 
-export type CreateCategoryData = {
-  workspace_id: string
-  name: string
-  colour: CategoryColor
-  leave_type: LeaveType
-  accrual_method: AccrualMethod
-  amount_value?: number | null
-  granting_frequency?: GrantingFrequency | null
-  accrual_day?: string | null
-  anniversary_years?: number | null
-  new_hire_rule: NewHireRule
-  waiting_period_value?: number | null
-  waiting_period_unit?: PeriodUnit | null
-  carryover_limit_enabled: boolean
-  carryover_max_days?: number | null
-  carryover_expiration_value?: number | null
-  carryover_expiration_unit?: PeriodUnit | null
-  sort_order: number
-}
+export type { CreateCategoryData, UpdateCategoryData } from "@/types/time-off-category"
 
-export type UpdateCategoryData = Omit<CreateCategoryData, "workspace_id" | "sort_order">
+const CATEGORY_FIELDS =
+  "id, workspace_id, name, emoji, colour, is_active, leave_type, accrual_method, " +
+  "amount_value, granting_frequency, accrual_day, anniversary_years, new_hire_rule, " +
+  "waiting_period_value, waiting_period_unit, carryover_limit_enabled, carryover_max_days, " +
+  "carryover_expiration_value, carryover_expiration_unit, sort_order, created_at, updated_at"
 
 export async function fetchCategory(categoryId: string, workspaceId: string): Promise<TimeOffCategory> {
   const { data, error } = await supabase
     .from("time_off_categories")
-    .select(
-      "id, workspace_id, name, emoji, colour, is_active, leave_type, accrual_method, " +
-      "amount_value, granting_frequency, accrual_day, anniversary_years, new_hire_rule, " +
-      "waiting_period_value, waiting_period_unit, carryover_limit_enabled, carryover_max_days, " +
-      "carryover_expiration_value, carryover_expiration_unit, sort_order, created_at, updated_at"
-    )
+    .select(CATEGORY_FIELDS)
     .eq("id", categoryId)
     .eq("workspace_id", workspaceId)
     .single()
@@ -81,12 +58,7 @@ export async function fetchTimeOffCategories(
 ): Promise<TimeOffCategory[]> {
   const { data, error } = await supabase
     .from("time_off_categories")
-    .select(
-      "id, workspace_id, name, emoji, colour, is_active, leave_type, accrual_method, " +
-      "amount_value, granting_frequency, accrual_day, anniversary_years, new_hire_rule, " +
-      "waiting_period_value, waiting_period_unit, carryover_limit_enabled, carryover_max_days, " +
-      "carryover_expiration_value, carryover_expiration_unit, sort_order, created_at, updated_at"
-    )
+    .select(CATEGORY_FIELDS)
     .eq("workspace_id", workspaceId)
     .order("sort_order", { ascending: true })
 
