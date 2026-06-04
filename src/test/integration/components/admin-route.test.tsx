@@ -50,4 +50,13 @@ describe("AdminRoute", () => {
     )
     expect(screen.queryByTestId("admin-content")).toBeNull()
   })
+
+  it("shows a loading spinner while auth is resolving — does not redirect prematurely", () => {
+    const { container } = renderWithProviders(
+      <AdminRoute><DummyAdmin /></AdminRoute>,
+      { auth: { user: makeUser(), loading: true, workspace: null, profile: null } }
+    )
+    expect(screen.queryByTestId("admin-content")).toBeNull()
+    expect(container.querySelector(".animate-spin")).toBeInTheDocument()
+  })
 })

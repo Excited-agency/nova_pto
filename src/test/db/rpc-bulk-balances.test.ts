@@ -178,4 +178,58 @@ describe.skipIf(skipIfNoServiceKey())("RPC: bulk_update_employee_balances (DB-14
       expect(data!.remaining_days).toBe(10)
     })
   })
+
+  describe("DB-C1: bulk_update_employee_balances inserts balance_adjustment_log rows", () => {
+    it("creates one log row per updated balance with reason='manual_adjustment'", async () => {
+      // Clear prior log rows for this employee to avoid interference from previous tests
+      await serviceClient
+        .from("balance_adjustment_log")
+        .delete()
+        .eq("employee_id", employee.userId)
+
+      const { error } = await admin.userClient.rpc("bulk_update_employee_balances", {
+        p_employee_id: employee.userId,
+        p_workspace_id: admin.workspaceId,
+        p_updates: [
+          { category_id: catA, remaining_days: 12 },
+          { category_id: catB, remaining_days: 8 },
+        ],
+      })
+      expect(error).toBeNull()
+
+      const { data: logs } = await serviceClient
+        .from("balance_adjustment_log")
+        .select("*")
+        .eq("employee_id", employee.userId)
+        .in("category_id", [catA, catB])
+
+      expect(logs).toHaveLength(2)
+      for (const log of logs!) {
+        expect(log.reason).toBe("manual_adjustment")
+        expect(log.adjusted_by).toBe(admin.userId)
+      }
+
+      const logA = logs!.find((l) => l.category_id === catA)!
+      expect(logA.delta).toBe(2)        // 12 - 10 = +2
+      expect(logA.balance_before).toBe(10)
+      expect(logA.balance_after).toBe(12)
+
+      const logB = logs!.find((l) => l.category_id === catB)!
+      expect(logB.delta).toBe(3)        // 8 - 5 = +3
+      expect(logB.balance_before).toBe(5)
+      expect(logB.balance_after).toBe(8)
+
+      // Restore balances
+      await serviceClient
+        .from("employee_balances")
+        .update({ remaining_days: 10 })
+        .eq("employee_id", employee.userId)
+        .eq("category_id", catA)
+      await serviceClient
+        .from("employee_balances")
+        .update({ remaining_days: 5 })
+        .eq("employee_id", employee.userId)
+        .eq("category_id", catB)
+    })
+  })
 })

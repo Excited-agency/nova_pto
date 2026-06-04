@@ -211,4 +211,51 @@ describe.skipIf(skipIfNoServiceKey())("RPC: create_time_off_record (DB-9..13)", 
       expect(error!.message).toMatch(/permission denied/i)
     })
   })
+
+  describe("DB-B1: create_time_off_record inserts a balance_adjustment_log row", () => {
+    it("log row has reason='record_created' and correct delta after creating a record", async () => {
+      const { data: before } = await serviceClient
+        .from("employee_balances")
+        .select("remaining_days")
+        .eq("employee_id", employee.userId)
+        .eq("category_id", categoryId)
+        .single()
+
+      const { data, error } = await admin.userClient.rpc("create_time_off_record", {
+        p_workspace_id: admin.workspaceId,
+        p_employee_id: employee.userId,
+        p_category_id: categoryId,
+        p_start_date: "2026-09-01",
+        p_end_date: "2026-09-03",
+        p_start_period: "morning",
+        p_end_period: "end_of_day",
+        p_comment: null,
+      })
+      expect(error).toBeNull()
+
+      const requestId = (data as any)?.id
+
+      const { data: logs } = await serviceClient
+        .from("balance_adjustment_log")
+        .select("*")
+        .eq("employee_id", employee.userId)
+        .eq("request_id", requestId)
+
+      expect(logs).toHaveLength(1)
+      const log = logs![0]
+      expect(log.reason).toBe("record_created")
+      expect(log.delta).toBe(-3)
+      expect(log.balance_before).toBe(before!.remaining_days)
+      expect(log.balance_after).toBe(before!.remaining_days - 3)
+      expect(log.adjusted_by).toBe(admin.userId)
+
+      // Restore
+      await serviceClient.from("time_off_requests").delete().eq("id", requestId)
+      await serviceClient
+        .from("employee_balances")
+        .update({ remaining_days: before!.remaining_days })
+        .eq("employee_id", employee.userId)
+        .eq("category_id", categoryId)
+    })
+  })
 })

@@ -318,4 +318,97 @@ describe.skipIf(skipIfNoServiceKey())("RPC: approve_time_off_request (DB-1..8)",
       await serviceClient.from("time_off_requests").delete().eq("id", req.id)
     })
   })
+
+  describe("DB-A1: approve inserts a balance_adjustment_log row", () => {
+    it("log row has correct delta, reason, and adjusted_by after approval", async () => {
+      const { data: before } = await serviceClient
+        .from("employee_balances")
+        .select("remaining_days")
+        .eq("employee_id", employee.userId)
+        .eq("category_id", categoryId)
+        .single()
+
+      const req = await seedPendingRequest(employee.userId, admin.workspaceId, { categoryId })
+
+      const { error } = await admin.userClient.rpc("approve_time_off_request", {
+        p_request_id: req.id,
+      })
+      expect(error).toBeNull()
+
+      const { data: logs } = await serviceClient
+        .from("balance_adjustment_log")
+        .select("*")
+        .eq("employee_id", employee.userId)
+        .eq("request_id", req.id)
+
+      expect(logs).toHaveLength(1)
+      const log = logs![0]
+      expect(log.delta).toBe(-5)
+      expect(log.balance_before).toBe(before!.remaining_days)
+      expect(log.balance_after).toBe(before!.remaining_days - 5)
+      expect(log.reason).toBe("request_approved")
+      expect(log.adjusted_by).toBe(admin.userId)
+
+      // Restore
+      await serviceClient.from("time_off_requests").delete().eq("id", req.id)
+      await serviceClient
+        .from("employee_balances")
+        .update({ remaining_days: before!.remaining_days })
+        .eq("employee_id", employee.userId)
+        .eq("category_id", categoryId)
+    })
+  })
+
+  describe("DB-A2: approve stamps reviewed_by and reviewed_at on the request", () => {
+    it("request row has reviewed_by = admin.userId and reviewed_at IS NOT NULL after approval", async () => {
+      const req = await seedPendingRequest(employee.userId, admin.workspaceId, { categoryId })
+
+      const { error } = await admin.userClient.rpc("approve_time_off_request", {
+        p_request_id: req.id,
+      })
+      expect(error).toBeNull()
+
+      const { data: reviewed } = await serviceClient
+        .from("time_off_requests")
+        .select("reviewed_by, reviewed_at")
+        .eq("id", req.id)
+        .single()
+
+      expect(reviewed?.reviewed_by).toBe(admin.userId)
+      expect(reviewed?.reviewed_at).not.toBeNull()
+
+      // Restore
+      await serviceClient.from("time_off_requests").delete().eq("id", req.id)
+      await serviceClient
+        .from("employee_balances")
+        .update({ remaining_days: 10 })
+        .eq("employee_id", employee.userId)
+        .eq("category_id", categoryId)
+    })
+  })
+
+  describe("DB-R1: reject stamps reviewed_by and reviewed_at on the request", () => {
+    it("request row has reviewed_by = admin.userId and reviewed_at IS NOT NULL after rejection", async () => {
+      const req = await seedPendingRequest(employee.userId, admin.workspaceId, { categoryId })
+
+      const { error } = await admin.userClient.rpc("reject_time_off_request", {
+        p_request_id: req.id,
+        p_rejection_reason: "No coverage available",
+      })
+      expect(error).toBeNull()
+
+      const { data: reviewed } = await serviceClient
+        .from("time_off_requests")
+        .select("status, reviewed_by, reviewed_at")
+        .eq("id", req.id)
+        .single()
+
+      expect(reviewed?.status).toBe("rejected")
+      expect(reviewed?.reviewed_by).toBe(admin.userId)
+      expect(reviewed?.reviewed_at).not.toBeNull()
+
+      // Cleanup
+      await serviceClient.from("time_off_requests").delete().eq("id", req.id)
+    })
+  })
 })
