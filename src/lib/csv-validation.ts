@@ -5,7 +5,7 @@ import type {
 } from "@/types/csv-import"
 import { splitFullName } from "@/lib/csv-header-mapping"
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/
 
 /**
  * Try to parse a date string in multiple common formats.

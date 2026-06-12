@@ -34,6 +34,7 @@ interface CategoryFormProps {
   submitLabel: string
   onSubmit: (data: CategoryFormValues) => Promise<void>
   onCancel: () => void
+  onDirtyChange?: (isDirty: boolean) => void
 }
 
 export function CategoryForm({
@@ -44,6 +45,7 @@ export function CategoryForm({
   submitLabel,
   onSubmit,
   onCancel,
+  onDirtyChange,
 }: CategoryFormProps) {
   const {
     control,
@@ -80,6 +82,10 @@ export function CategoryForm({
   })
 
   const frequencyChangeRef = useRef(true)
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty)
+  }, [isDirty, onDirtyChange])
 
   // Clear dependent fields when accrual method changes
   useEffect(() => {

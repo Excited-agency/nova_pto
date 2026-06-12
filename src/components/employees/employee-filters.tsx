@@ -26,9 +26,9 @@ export function EmployeeFilters({
   counts,
 }: EmployeeFiltersProps) {
   const tabItems = [
-    { value: "active", label: "Active", badge: counts.active || undefined },
-    { value: "inactive", label: "Inactive", badge: counts.inactive || undefined },
-    { value: "deleted", label: "Deleted", badge: counts.deleted || undefined },
+    { value: "active", label: "Active", badge: counts.active > 0 ? counts.active : undefined },
+    { value: "inactive", label: "Inactive", badge: counts.inactive > 0 ? counts.inactive : undefined },
+    { value: "deleted", label: "Deleted", badge: counts.deleted > 0 ? counts.deleted : undefined },
   ]
 
   return (

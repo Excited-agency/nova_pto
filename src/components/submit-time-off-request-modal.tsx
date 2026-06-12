@@ -60,7 +60,7 @@ export function SubmitTimeOffRequestModal({
   onOpenChange,
 }: SubmitTimeOffRequestModalProps) {
   const { profile, workspace } = useAuth()
-  const isAdmin = profile?.role === "admin"
+  const isAdmin = profile?.role === "admin" || profile?.role === "owner"
   const today = useMemo(() => new Date(), [])
   const minDate = isAdmin ? undefined : today
   const { data: categories = [] } = useTimeOffCategories()
@@ -81,12 +81,7 @@ export function SubmitTimeOffRequestModal({
     },
   })
 
-  const categoryId = watch("categoryId")
-  const startDate = watch("startDate")
-  const endDate = watch("endDate")
-  const startPeriod = watch("startPeriod")
-  const endPeriod = watch("endPeriod")
-  const comment = watch("comment")
+  const { categoryId, startDate, endDate, startPeriod, endPeriod, comment } = watch()
 
   useEffect(() => {
     if (!open) {
@@ -170,7 +165,8 @@ export function SubmitTimeOffRequestModal({
   const isValid =
     !!categoryId && !!startDate && !!endDate &&
     totalDays != null && totalDays > 0 &&
-    !hasPastDates
+    !hasPastDates &&
+    !insufficientBalance
 
   const onSubmit = handleSubmit((data) => {
     if (!isValid || !profile || !workspace || totalDays == null) return

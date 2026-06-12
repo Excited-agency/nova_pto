@@ -139,7 +139,7 @@ export function UserSettingsPage() {
         newAvatarUrl = null
       }
 
-      await updateProfile(profile.id, {
+      await updateProfile(profile.id, workspace.id, {
         first_name: firstName,
         last_name: lastName,
         avatar_url: newAvatarUrl,

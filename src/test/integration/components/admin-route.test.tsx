@@ -22,6 +22,14 @@ describe("AdminRoute", () => {
     expect(screen.getByTestId("admin-content")).toBeInTheDocument()
   })
 
+  it("renders children when profile.role is 'owner'", () => {
+    renderWithProviders(
+      <AdminRoute><DummyAdmin /></AdminRoute>,
+      { auth: { ...authBase, profile: makeProfile({ role: "owner" }) } }
+    )
+    expect(screen.getByTestId("admin-content")).toBeInTheDocument()
+  })
+
   it("redirects to /access-restricted when profile.role is 'user'", () => {
     renderWithProviders(
       <AdminRoute><DummyAdmin /></AdminRoute>,

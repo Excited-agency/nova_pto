@@ -40,7 +40,7 @@ export async function generateReport(workspaceId: string): Promise<void> {
   const balanceMap = new Map<string, Map<string, number>>()
   for (const b of balances) {
     if (!balanceMap.has(b.employee_id)) balanceMap.set(b.employee_id, new Map())
-    balanceMap.get(b.employee_id)!.set(b.category_id, b.remaining_days)
+    balanceMap.get(b.employee_id)?.set(b.category_id, b.remaining_days)
   }
 
   const balanceHeaders = [

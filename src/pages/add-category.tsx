@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
 import { FileClock, ChevronRight } from "lucide-react"
 
@@ -10,6 +11,7 @@ import {
   useTimeOffCategories,
   useCreateCategoryMutation,
 } from "@/hooks/use-time-off-categories"
+import { useNavigationGuard } from "@/contexts/navigation-guard-context"
 import { addToast } from "@/lib/toast"
 
 export function AddCategoryPage() {
@@ -17,6 +19,25 @@ export function AddCategoryPage() {
   const { workspace } = useAuth()
   const { data: categories = [] } = useTimeOffCategories()
   const createMutation = useCreateCategoryMutation()
+  const { registerGuard, unregisterGuard } = useNavigationGuard()
+  const [isDirty, setIsDirty] = useState(false)
+
+  useEffect(() => {
+    registerGuard(() => {
+      if (!isDirty) return true
+      return window.confirm("You have unsaved changes. Are you sure you want to leave?")
+    })
+    return () => unregisterGuard()
+  }, [isDirty, registerGuard, unregisterGuard])
+
+  useEffect(() => {
+    if (!isDirty) return
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault() }
+    window.addEventListener("beforeunload", handler)
+    return () => window.removeEventListener("beforeunload", handler)
+  }, [isDirty])
+
+  const handleDirtyChange = useCallback((dirty: boolean) => setIsDirty(dirty), [])
 
   async function handleSubmit(data: CategoryFormValues) {
     if (!workspace) return
@@ -64,6 +85,7 @@ export function AddCategoryPage() {
       {/* Header */}
       <div className="flex items-center gap-2 border-b border-border px-4 h-[60px] shrink-0">
         <button
+          aria-label="Back to time-off setup"
           className="flex items-center justify-center size-7 rounded-[10px] shrink-0 text-foreground hover:bg-accent transition-colors"
           onClick={() => navigate("/time-off-setup")}
         >
@@ -93,6 +115,7 @@ export function AddCategoryPage() {
           submitLabel="Add category"
           onSubmit={handleSubmit}
           onCancel={() => navigate("/time-off-setup")}
+          onDirtyChange={handleDirtyChange}
         />
       </div>
     </div>

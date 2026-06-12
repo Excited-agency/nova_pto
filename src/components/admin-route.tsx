@@ -13,7 +13,7 @@ export function AdminRoute({ children }: { children: ReactNode }) {
     )
   }
 
-  if (profile?.role !== "admin") {
+  if (profile?.role !== "admin" && profile?.role !== "owner") {
     return <Navigate to="/access-restricted" replace />
   }
 

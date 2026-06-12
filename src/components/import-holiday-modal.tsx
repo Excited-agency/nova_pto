@@ -18,12 +18,11 @@ import {
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useAuth } from "@/hooks/use-auth"
-import { useImportHolidaysMutation } from "@/hooks/use-holidays"
-import { fetchPublicHolidays } from "@/lib/holiday-service"
+import { useImportHolidaysMutation, usePublicHolidays } from "@/hooks/use-holidays"
 import { addToast } from "@/lib/toast"
+import { formatDate } from "@/lib/date-utils"
 import { cn } from "@/lib/utils"
 import { countries } from "@/data/countries"
-import type { NagerHoliday } from "@/types/holiday"
 
 interface ImportHolidayModalProps {
   open: boolean
@@ -33,14 +32,6 @@ interface ImportHolidayModalProps {
 const currentYear = new Date().getFullYear()
 const years = [currentYear, currentYear + 1, currentYear + 2]
 
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr + "T00:00:00")
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })
-}
 
 export function ImportHolidayModal({ open, onOpenChange }: ImportHolidayModalProps) {
   const { workspace } = useAuth()
@@ -48,10 +39,13 @@ export function ImportHolidayModal({ open, onOpenChange }: ImportHolidayModalPro
 
   const [countryCode, setCountryCode] = useState("")
   const [year, setYear] = useState(String(currentYear))
-  const [fetchedHolidays, setFetchedHolidays] = useState<NagerHoliday[]>([])
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set())
-  const [isFetching, setIsFetching] = useState(false)
-  const [fetchError, setFetchError] = useState<string | null>(null)
+
+  const { data: fetchedHolidays = [], isLoading: isFetching, isError: hasFetchError } = usePublicHolidays(
+    countryCode ? Number(year) : null,
+    countryCode || null
+  )
+  const fetchError = hasFetchError ? "Failed to fetch holidays for the selected country and year" : null
 
   // Country combobox state
   const [countryQuery, setCountryQuery] = useState("")
@@ -66,15 +60,17 @@ export function ImportHolidayModal({ open, onOpenChange }: ImportHolidayModalPro
     }
   }, [])
 
+  // Auto-select all holidays when new data arrives
+  useEffect(() => {
+    setSelectedIndices(new Set(fetchedHolidays.map((_, i) => i)))
+  }, [fetchedHolidays])
+
   // Reset state when modal closes
   useEffect(() => {
     if (!open) {
       setCountryCode("")
       setYear(String(currentYear))
-      setFetchedHolidays([])
       setSelectedIndices(new Set())
-      setIsFetching(false)
-      setFetchError(null)
       setCountryQuery("")
       setCountryOpen(false)
     }
@@ -117,35 +113,6 @@ export function ImportHolidayModal({ open, onOpenChange }: ImportHolidayModalPro
       }
     }, 200)
   }
-
-  // Auto-fetch holidays when country and year are set
-  useEffect(() => {
-    if (!countryCode || !year) return
-
-    let cancelled = false
-    setIsFetching(true)
-    setFetchError(null)
-    setFetchedHolidays([])
-    setSelectedIndices(new Set())
-
-    fetchPublicHolidays(Number(year), countryCode)
-      .then((holidays) => {
-        if (cancelled) return
-        setFetchedHolidays(holidays)
-        setSelectedIndices(new Set(holidays.map((_, i) => i)))
-      })
-      .catch((err) => {
-        if (cancelled) return
-        setFetchError(err instanceof Error ? err.message : "Failed to fetch holidays")
-      })
-      .finally(() => {
-        if (!cancelled) setIsFetching(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [countryCode, year])
 
   const allSelected = fetchedHolidays.length > 0 && selectedIndices.size === fetchedHolidays.length
   const someSelected = selectedIndices.size > 0 && selectedIndices.size < fetchedHolidays.length

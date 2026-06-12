@@ -10,12 +10,14 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { Separator } from "@/components/ui/separator"
 import { BreadcrumbItem } from "@/components/ui/breadcrumb-item"
-import { useDepartments } from "@/hooks/use-departments"
+import {
+  useDepartments,
+  useCreateDepartmentMutation,
+  useUpdateDepartmentMutation,
+  useDeleteDepartmentMutation,
+} from "@/hooks/use-departments"
 import {
   fetchDepartments,
-  createDepartment,
-  updateDepartment,
-  deleteDepartment,
   deleteWorkspace,
   updateWorkspace,
   updateProfile,
@@ -53,6 +55,9 @@ export function SettingsPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { data: cachedDepartments } = useDepartments()
+  const createDeptMutation = useCreateDepartmentMutation()
+  const updateDeptMutation = useUpdateDepartmentMutation()
+  const deleteDeptMutation = useDeleteDepartmentMutation()
 
   const [workspaceName, setWorkspaceName] = useState("")
   const [firstName, setFirstName] = useState("")
@@ -310,7 +315,7 @@ export function SettingsPage() {
       }
 
       // 4. Update profile
-      await updateProfile(profile.id, {
+      await updateProfile(profile.id, workspace.id, {
         first_name: firstName,
         last_name: lastName,
         avatar_url: newAvatarUrl,
@@ -320,21 +325,21 @@ export function SettingsPage() {
       })
 
       // 5. Handle departments
-      for (const id of deletedDepartmentIds) {
-        await deleteDepartment(id, workspace.id)
-      }
-      for (const dept of departments) {
-        if (dept.isNew) {
-          if (dept.name.trim()) {
-            await createDepartment(workspace.id, dept.name.trim())
-          }
-        } else {
-          const original = initialValues?.departments.find((od) => od.id === dept.id)
-          if (original && original.name !== dept.name && dept.name.trim()) {
-            await updateDepartment(dept.id, dept.name.trim(), workspace.id)
-          }
-        }
-      }
+      await Promise.all(deletedDepartmentIds.map((id) => deleteDeptMutation.mutateAsync(id)))
+      await Promise.all(
+        departments
+          .filter((d) => d.isNew && d.name.trim())
+          .map((d) => createDeptMutation.mutateAsync(d.name.trim()))
+      )
+      await Promise.all(
+        departments
+          .filter((d) => {
+            if (d.isNew) return false
+            const original = initialValues?.departments.find((od) => od.id === d.id)
+            return original && original.name !== d.name && d.name.trim()
+          })
+          .map((d) => updateDeptMutation.mutateAsync({ id: d.id, name: d.name.trim() }))
+      )
 
       // 6. Refresh auth context (updates sidebar)
       await Promise.all([refreshWorkspace(), refreshProfile()])
@@ -344,7 +349,10 @@ export function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: employeeKeys.all(workspace.id) })
 
       // 8. Re-fetch departments and reset state
-      const freshDeps = await fetchDepartments(workspace.id)
+      const freshDeps = await queryClient.fetchQuery({
+        queryKey: departmentKeys.all(workspace.id),
+        queryFn: () => fetchDepartments(workspace.id),
+      })
       const rows = freshDeps.map((d: Department) => ({ id: d.id, name: d.name, isNew: false }))
       setDepartments(rows)
       setLogoUrl(newLogoUrl)

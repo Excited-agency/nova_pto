@@ -8,6 +8,7 @@ import { EmployeeForm, type EmployeeFormData } from "@/components/employee-form"
 import { uploadImage } from "@/lib/settings-service"
 import { useEmployee, useUpdateEmployeeMutation } from "@/hooks/use-employees"
 import { addToast } from "@/lib/toast"
+import { parseDateLocal } from "@/lib/date-utils"
 import { useNavigationGuard } from "@/contexts/navigation-guard-context"
 
 export function EditEmployeePage() {
@@ -78,6 +79,7 @@ export function EditEmployeePage() {
   const header = (
     <div className="flex items-center gap-2 border-b border-border px-4 h-[60px] shrink-0">
       <button
+        aria-label="Back to employees"
         className="flex items-center justify-center size-7 rounded-[10px] shrink-0 text-foreground hover:bg-accent transition-colors"
         onClick={() => navigate("/employees")}
       >
@@ -127,9 +129,7 @@ export function EditEmployeePage() {
     departmentId: employee.department_id ?? "",
     role: employee.role,
     location: employee.location ?? "",
-    startDate: employee.hire_date
-      ? new Date(employee.hire_date + "T00:00:00")
-      : undefined,
+    startDate: employee.hire_date ? parseDateLocal(employee.hire_date) : undefined,
     avatarUrl: employee.avatar_url,
   }
 

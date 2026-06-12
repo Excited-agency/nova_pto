@@ -36,7 +36,7 @@ const employeeNavItems = [
 
 export function Sidebar() {
   const { user, workspace, profile, signOut } = useAuth()
-  const isAdmin = profile?.role === "admin"
+  const isAdmin = profile?.role === "admin" || profile?.role === "owner"
   const navItems = isAdmin ? adminNavItems : employeeNavItems
   const { data: pendingCount = 0 } = usePendingRequestCount()
   const { canNavigate } = useNavigationGuard()
@@ -116,6 +116,7 @@ export function Sidebar() {
           <Tooltip>
             <TooltipTrigger asChild>
               <button
+                aria-label="Logout"
                 onClick={signOut}
                 className="flex size-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground opacity-50 transition-colors hover:bg-sidebar-accent hover:opacity-100"
               >

@@ -6,15 +6,14 @@ import { DataTableCell } from "@/components/ui/data-table-cell"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { ComboboxMenu } from "@/components/ui/combobox-menu"
 import type { Holiday } from "@/types/holiday"
+import { parseDateLocal } from "@/lib/date-utils"
 
 function formatHolidayDate(dateStr: string): string {
-  const date = new Date(dateStr + "T00:00:00")
-  return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+  return parseDateLocal(dateStr).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
 }
 
 function getDayOfWeek(dateStr: string): string {
-  const date = new Date(dateStr + "T00:00:00")
-  return date.toLocaleDateString("en-US", { weekday: "long" })
+  return parseDateLocal(dateStr).toLocaleDateString("en-US", { weekday: "long" })
 }
 
 interface HolidayListItemProps {

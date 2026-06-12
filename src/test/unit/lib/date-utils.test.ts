@@ -6,6 +6,7 @@ import {
   formatLocalDate,
   formatPeriod,
   isBeforeDate,
+  parseDateLocal,
 } from "@/lib/date-utils"
 
 describe("calculateDays", () => {
@@ -171,5 +172,65 @@ describe("isBeforeDate", () => {
 
   it("handles year boundary correctly", () => {
     expect(isBeforeDate(new Date(2025, 11, 31), new Date(2026, 0, 1))).toBe(true)
+  })
+})
+
+describe("timezone-safe date parsing regression", () => {
+  // Regression: prior code used new Date(dateStr + "T00:00:00") for calculateDays
+  // and new Date(dateStr) for formatPeriod. The latter parses date-only strings as
+  // UTC midnight, which shifts to the previous day in UTC-X timezones.
+  // parseDateLocal uses new Date(y, m-1, d) — always local, always correct.
+
+  it("formatPeriod: Jan 1 renders as Jan 1 not Dec 31 (timezone-safe)", () => {
+    const result = formatPeriod("2026-01-01", "2026-01-01")
+    expect(result).toBe("Jan 1, 2026")
+    expect(result).not.toContain("Dec 31")
+    expect(result).not.toContain("2025")
+  })
+
+  it("formatPeriod: Dec 31 renders as Dec 31 not Dec 30", () => {
+    const result = formatPeriod("2026-12-31", "2026-12-31")
+    expect(result).toBe("Dec 31, 2026")
+    expect(result).not.toContain("Dec 30")
+  })
+
+  it("calculateDays: Jan 1 (Thursday) counted as 1 working day", () => {
+    // 2026-01-01 is a Thursday — must be counted regardless of timezone
+    expect(calculateDays("2026-01-01", "2026-01-01")).toBe(1)
+  })
+
+  it("calculateDays: year-boundary week Mon Dec 28 → Fri Jan 1 = 5 days", () => {
+    // 2026-12-28 Mon → 2027-01-01 Fri = 5 working days
+    expect(calculateDays("2026-12-28", "2027-01-01")).toBe(5)
+  })
+})
+
+describe("parseDateLocal", () => {
+  it("returns a local-midnight Date with the correct year/month/day", () => {
+    const d = parseDateLocal("2026-01-01")
+    expect(d.getFullYear()).toBe(2026)
+    expect(d.getMonth()).toBe(0)   // January (0-indexed)
+    expect(d.getDate()).toBe(1)
+  })
+
+  it("returns Jan 1 — not Dec 31 — regardless of timezone offset", () => {
+    // new Date("2026-01-01") parses as UTC midnight → local date shifts to Dec 31 in UTC-X
+    // parseDateLocal must always yield the calendar date as written
+    const d = parseDateLocal("2026-01-01")
+    expect(d.getDate()).toBe(1)
+    expect(d.getMonth()).toBe(0)
+  })
+
+  it("returns Dec 31 for 2026-12-31", () => {
+    const d = parseDateLocal("2026-12-31")
+    expect(d.getFullYear()).toBe(2026)
+    expect(d.getMonth()).toBe(11)  // December (0-indexed)
+    expect(d.getDate()).toBe(31)
+  })
+
+  it("is equivalent to new Date(y, m-1, d) constructor", () => {
+    const d1 = parseDateLocal("2026-06-15")
+    const d2 = new Date(2026, 5, 15)
+    expect(d1.getTime()).toBe(d2.getTime())
   })
 })

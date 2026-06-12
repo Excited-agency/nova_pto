@@ -17,7 +17,7 @@ import { DatePicker } from "@/components/ui/date-picker"
 import { useAuth } from "@/hooks/use-auth"
 import { useCreateHolidayMutation, useUpdateHolidayMutation } from "@/hooks/use-holidays"
 import { addToast } from "@/lib/toast"
-import { formatLocalDate } from "@/lib/date-utils"
+import { formatLocalDate, parseDateLocal } from "@/lib/date-utils"
 import type { Holiday } from "@/types/holiday"
 
 interface HolidayModalProps {
@@ -26,10 +26,6 @@ interface HolidayModalProps {
   holiday?: Holiday | null
 }
 
-function parseDateString(dateStr: string): Date {
-  const [year, month, day] = dateStr.split("-").map(Number)
-  return new Date(year, month - 1, day)
-}
 
 const holidaySchema = z.object({
   name: z.string().min(1, "Holiday name is required"),
@@ -54,7 +50,7 @@ export function HolidayModal({ open, onOpenChange, holiday }: HolidayModalProps)
   // Pre-fill on edit, reset on close
   useEffect(() => {
     if (open && holiday) {
-      reset({ name: holiday.name, date: parseDateString(holiday.date) })
+      reset({ name: holiday.name, date: parseDateLocal(holiday.date) })
     } else if (!open) {
       reset({ name: "", date: undefined })
     }
@@ -68,8 +64,9 @@ export function HolidayModal({ open, onOpenChange, holiday }: HolidayModalProps)
     const dateStr = formatLocalDate(data.date)
 
     if (isEdit) {
+      if (!holiday) return
       updateMutation.mutate(
-        { holidayId: holiday!.id, data: { name: data.name.trim(), date: dateStr } },
+        { holidayId: holiday.id, data: { name: data.name.trim(), date: dateStr } },
         {
           onSuccess: () => {
             addToast({ title: "Holiday updated" })

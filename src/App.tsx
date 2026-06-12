@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { ProtectedRoute } from "@/components/protected-route"
 import { AdminRoute } from "@/components/admin-route"
 import { DashboardLayout } from "@/components/layout/DashboardLayout"
+import { ErrorBoundary } from "@/components/error-boundary"
 import { supabase } from "@/lib/supabase"
 import { Toaster } from "@/components/ui/toaster"
 
@@ -62,13 +63,13 @@ const UserSettingsPage = lazy(() => import("@/pages/user-settings").then(m => ({
 
 function RequestsRoute() {
   const { profile } = useAuth()
-  if (profile?.role !== "admin") return <EmployeeRequestsPage />
+  if (profile?.role !== "admin" && profile?.role !== "owner") return <EmployeeRequestsPage />
   return <RequestsPage />
 }
 
 function SettingsRoute() {
   const { profile } = useAuth()
-  if (profile?.role !== "admin") return <UserSettingsPage />
+  if (profile?.role !== "admin" && profile?.role !== "owner") return <UserSettingsPage />
   return <SettingsPage />
 }
 
@@ -78,6 +79,7 @@ export default function App() {
       <AuthQueryBridge />
       <AuthProvider>
         <BrowserRouter>
+          <ErrorBoundary>
           <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><div className="size-6 animate-spin rounded-full border-2 border-muted-foreground border-t-foreground" /></div>}>
           <Routes>
             <Route path="/auth/callback" element={<AuthCallbackPage />} />
@@ -108,11 +110,12 @@ export default function App() {
             <Route path="*" element={<Navigate to="/requests" replace />} />
           </Routes>
           </Suspense>
+          </ErrorBoundary>
         </BrowserRouter>
         <Toaster />
         <SpeedInsights />
       </AuthProvider>
-      <ReactQueryDevtools initialIsOpen={false} />
+      {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
   )
 }

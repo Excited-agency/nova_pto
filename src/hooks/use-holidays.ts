@@ -2,14 +2,25 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tansta
 import { useAuth } from "@/hooks/use-auth"
 import {
   fetchHolidays,
+  fetchPublicHolidays,
   createHoliday,
   updateHoliday,
   deleteHoliday,
   bulkDeleteHolidays,
-  replaceImportedHolidays, type ReplaceHolidayItem, type UpdateHolidayData 
+  replaceImportedHolidays, type ReplaceHolidayItem, type UpdateHolidayData
 } from "@/lib/holiday-service"
 import type { CreateHolidayData } from "@/types/holiday"
 import { holidayKeys } from "@/lib/query-keys"
+
+export function usePublicHolidays(year: number | null, countryCode: string | null) {
+  return useQuery({
+    queryKey: ["publicHolidays", year, countryCode] as const,
+    queryFn: () => fetchPublicHolidays(year!, countryCode!),
+    enabled: !!year && !!countryCode,
+    staleTime: 24 * 60 * 60_000,
+    gcTime: 24 * 60 * 60_000,
+  })
+}
 
 export function useHolidays() {
   const { workspace } = useAuth()

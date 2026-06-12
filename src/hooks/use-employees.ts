@@ -138,7 +138,7 @@ export function useInviteEmployeeMutation() {
     onSuccess: () => {
       if (workspace) {
         queryClient.invalidateQueries({ queryKey: employeeKeys.all(workspace.id) })
-        queryClient.invalidateQueries({ queryKey: departmentKeys.all(workspace.id) })
+        queryClient.invalidateQueries({ queryKey: activeEmployeeKeys.list(workspace.id) })
       }
     },
   })

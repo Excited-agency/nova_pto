@@ -15,6 +15,7 @@ export async function updateWorkspace(
 
 export async function updateProfile(
   profileId: string,
+  workspaceId: string,
   data: {
     first_name?: string
     last_name?: string
@@ -28,6 +29,7 @@ export async function updateProfile(
     .from("profiles")
     .update(data)
     .eq("id", profileId)
+    .eq("workspace_id", workspaceId)
   if (error) throw error
 }
 

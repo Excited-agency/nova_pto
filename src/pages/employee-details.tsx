@@ -149,6 +149,7 @@ export function EmployeeDetailsPage() {
   const header = (
     <div className="flex items-center gap-2 border-b border-border px-4 h-[60px] shrink-0">
       <button
+        aria-label="Back to employees"
         className="flex items-center justify-center size-7 rounded-[10px] shrink-0 text-foreground hover:bg-accent transition-colors"
         onClick={() => navigate("/employees")}
       >

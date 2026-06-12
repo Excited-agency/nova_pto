@@ -78,11 +78,7 @@ VITE_SITE_URL=...          # Base URL for magic link redirects; falls back to wi
 
 ### Data flow
 
-Pages do **not** fetch data directly. The layered pattern is: **Services → Hooks → Components**.
-
-- **Services** (`src/lib/*-service.ts`) — raw Supabase calls, no React state
-- **Hooks** (`src/hooks/use-*.ts`) — wrap services in TanStack Query (`useQuery`/`useMutation`). React Query is configured globally in `src/App.tsx` with staleTime 5 min, gcTime 10 min, retry 3×. Cache keys are centralized in `src/lib/query-keys.ts`.
-- **Components/Pages** — consume hooks only, never call services directly
+Pages do **not** fetch data directly. The layered pattern is: **Services → Hooks → Components**. See `project-conventions` skill for code examples and enforcement rules.
 
 ### Supabase schema
 
@@ -194,34 +190,17 @@ Deploy with `supabase functions deploy <function-name>`.
 
 ### Layout structure
 
-Non-dashboard components: `src/components/auth-layout.tsx` (wrapper for login/OTP pages), `src/components/protected-route.tsx` (redirects unauthenticated users), `src/components/admin-route.tsx` (wraps admin-only routes, redirects non-admins to `/access-restricted`), `src/components/error-boundary.tsx` (error fallback wrapping DashboardLayout), `src/components/nova-logo.tsx`. Dashboard-specific layout: `src/components/layout/DashboardLayout.tsx` and `src/components/layout/Sidebar.tsx`.
-
-`DashboardLayout`: outer `div` with `bg-sidebar-accent p-2 flex h-screen overflow-hidden`, containing a fixed-width `Sidebar` (260px) and a `main` that is `flex-1 overflow-y-auto rounded-xl bg-background`. The sidebar background is visually inset into the app chrome.
-
-### Styling
-
-Tailwind v4 with a custom design system sourced from Figma. Design tokens are defined as CSS variables in `src/index.css` and mapped via `@theme inline`. The font is **Instrument Sans** (Google Fonts). Use `cn()` from `src/lib/utils.ts` (`clsx` + `tailwind-merge`) for conditional class names.
-
-Custom tokens beyond shadcn defaults:
-- `shadow-focus`, `shadow-destructive-focus`, `shadow-switch-focus` — used for focus rings on interactive elements
-- `color-success-*`, `color-warning-*`, `color-error-*` — semantic status colors
-- `shadow-2xs`, `shadow-xs`, `shadow-sm`, `shadow-md`, `shadow-lg` — Figma-matched shadows
+Non-dashboard: `src/components/auth-layout.tsx`, `protected-route.tsx`, `admin-route.tsx`, `error-boundary.tsx`, `nova-logo.tsx`. Dashboard: `src/components/layout/DashboardLayout.tsx` + `Sidebar.tsx`. CSS token/class details: see `nova-pto-ui-conventions` skill.
 
 ### Component conventions
 
-- UI primitives live in `src/components/ui/`. These are custom components (not auto-generated shadcn CLI output) built to match Figma specs exactly. Notable groups:
-  - **Combobox system**: `combobox-menu.tsx`, `combobox-search-field.tsx`, `combobox-menu-item.tsx`, `combobox-menu-label.tsx` — low-level primitives. `location-combobox.tsx` composes these with a static `src/data/cities.json` dataset (~500 entries, `{ name, country }`) and `src/data/countries.ts` (`Country` interface + `countries` array with codes, names, and emoji flags) for the employee location field. `employee-combobox.tsx` is data-agnostic — it receives an `employees: ComboboxEmployee[]` prop (type defined in `time-off-request-service.ts`).
-  - **Data table**: `data-table-header-cell.tsx`, `data-table-cell.tsx`, `data-table-pagination.tsx` — used in Requests and Employees pages.
-  - **Calendar primitives**: `calendar-cell.tsx`, `calendar-day-button.tsx`, `calendar-event-slot.tsx`, `calendar-header.tsx`, `calendar-arrow-button.tsx` — low-level atoms. Higher-level composites live in `src/components/calendar/`: `CalendarMonthGrid`, `CalendarWeekRow`, `CalendarEventBar`, `CalendarFilters` — all built but not yet wired to a live calendar page.
-- Radix primitives come from the unified `radix-ui` package (e.g. `import { Tabs, Slot } from "radix-ui"`), **not** individual `@radix-ui/*` packages.
-- Component variants are built with `cva` from `class-variance-authority`.
-- All UI primitives use a `data-slot="<name>"` attribute for identification (e.g. `data-slot="button"`, `data-slot="tabs-trigger"`).
-- Higher-level composite components (e.g. `TabGroup`) wrap the lower-level primitives and accept a declarative `items` prop instead of requiring manual composition.
-- `src/components/employee-form.tsx` — shared form used by `AddEmployeePage` and `EditEmployeePage`. Accepts `mode` (`"add" | "edit"`) and optional `initialData`.
-- `src/components/category-form.tsx` — shared form used by `AddCategoryPage` and `EditCategoryPage`. Same `mode`/`initialData` pattern.
-- `Button` supports a `loading` prop that shows a spinner and disables interaction.
-- Page components export named functions (e.g. `export function LoginPage()`), not default exports.
-- Path alias `@/` maps to `src/`.
+UI primitives in `src/components/ui/`. Key groups:
+- **Combobox**: `combobox-menu.tsx`, `combobox-search-field.tsx`, `combobox-menu-item.tsx`, `combobox-menu-label.tsx`. `location-combobox.tsx` uses `src/data/cities.json` + `src/data/countries.ts`. `employee-combobox.tsx` accepts `employees: ComboboxEmployee[]` prop.
+- **Data table**: `data-table-header-cell.tsx`, `data-table-cell.tsx`, `data-table-pagination.tsx`
+- **Calendar primitives**: `calendar-cell.tsx`, `calendar-day-button.tsx`, `calendar-event-slot.tsx`, `calendar-header.tsx`, `calendar-arrow-button.tsx`. Higher-level: `src/components/calendar/` — `CalendarMonthGrid`, `CalendarWeekRow`, `CalendarEventBar`, `CalendarFilters` (built, not yet wired to live page).
+- **Shared forms**: `employee-form.tsx` (Add/EditEmployeePage, `mode: "add"|"edit"`), `category-form.tsx` (Add/EditCategoryPage, same pattern).
+
+Coding rules (named exports, data-slot, cva, Radix imports, Button loading prop): see `project-conventions` skill.
 
 ## Workflow Orchestration
 
@@ -275,3 +254,94 @@ Custom tokens beyond shadcn defaults:
 - **Simplicity First**: Make every change as simple as possible. Impact minimal code.
 - **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
 - **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
+
+## Security Rules (enforce always)
+
+### 1. Workspace isolation — every DB write must filter by workspace_id
+Every service-layer UPDATE/DELETE on a workspace-scoped table **must** include `.eq("workspace_id", workspaceId)` as a second filter — even when RLS already protects the data (defense-in-depth). RLS is the last line of defence, not the only one.
+
+```ts
+// ✅ Correct
+supabase.from("profiles").update(data).eq("id", profileId).eq("workspace_id", workspaceId)
+
+// ❌ Wrong — relies solely on RLS
+supabase.from("profiles").update(data).eq("id", profileId)
+```
+
+### 2. Symmetric operations must be fixed symmetrically
+If you fix a security or logic issue in one operation (e.g. `approve_time_off_request`), immediately search for all **symmetric operations** (e.g. `reject_time_off_request`, `withdraw_time_off_request`) and apply the same fix. Never patch one without checking its siblings.
+
+### 3. RPCs must validate workspace ownership of all input IDs
+Any RPC that accepts IDs (request_id, category_id, employee_id) must verify that each ID belongs to the caller's workspace **inside the RPC itself**. Clients cannot be trusted to pass only valid IDs.
+
+### 4. Dates must always use explicit UTC
+All date string construction must use the `Z` suffix to avoid local-timezone off-by-one errors:
+
+```ts
+// ✅ Correct
+new Date(dateStr + "T00:00:00Z")
+
+// ❌ Wrong — interprets in local timezone
+new Date(dateStr + "T00:00:00")
+```
+
+### 5. Env vars must be validated at module load time
+Add a guard at the top of `src/lib/supabase.ts` and any file that reads `import.meta.env.*`:
+
+```ts
+if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
+  throw new Error("Missing required env vars: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY")
+}
+```
+
+### 6. Type signatures must encode business rules
+If a field is forbidden in a business context, the **type must exclude it** — not just runtime validation:
+
+```ts
+// ✅ Correct — "owner" excluded at the type level
+role: "admin" | "user"
+
+// ❌ Wrong — relies on runtime check to reject "owner"
+role: "owner" | "admin" | "user"
+```
+
+---
+
+## Data Integrity Rules
+
+### 7. Every mutation hook must audit cache invalidations
+When writing or modifying a `useMutation`, check the full list of query keys that could be affected — not just the obvious ones. Cross-reference with `src/lib/query-keys.ts`.
+
+Common cascade paths:
+- Approve/reject request → invalidate: `timeOffRequestKeys`, `myRequestKeys`, `employeeBalanceKeys`
+- Invite employee → invalidate: `employeeKeys.all`, `employeeKeys.active`, `employeeCounts`
+- Update profile → invalidate: `employeeKeys.detail`, auth context workspace/profile
+
+### 8. Multi-step Edge Functions must be atomic
+Edge Functions that perform multiple DB operations (create user + insert profile, soft-delete + delete auth, etc.) must either:
+- Use a single SQL function/RPC that wraps everything in a transaction, OR
+- Have explicit rollback logic (with documented recovery path) if any step fails
+
+Never leave orphaned auth users or partially-deleted workspaces.
+
+---
+
+## Code Quality Rules
+
+### 9. Services → Hooks → Components — no exceptions
+Direct `supabase.*` calls are only allowed in `src/lib/*-service.ts` files and `src/lib/supabase.ts`. Auth pages (`login.tsx`, `auth-callback.tsx`) are not exceptions — use `auth-service.ts`.
+
+### 10. noUnusedLocals and noUnusedParameters must stay enabled
+Do not disable `noUnusedLocals` or `noUnusedParameters` in tsconfig. If enabling them surfaces errors, fix the errors — don't suppress the rule.
+
+---
+
+## Skills
+
+Invoke these project skills (via Skill tool) when the situation matches:
+
+| Situation | Skill |
+|-----------|-------|
+| Code change done (any bugfix / feature / refactor) — before marking done | `nova-pto-test-sync` |
+| Creating or editing any UI component or page | `nova-pto-ui-conventions` |
+| Writing a new Supabase migration | `nova-pto-migration` |

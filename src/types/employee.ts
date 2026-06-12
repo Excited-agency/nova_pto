@@ -4,7 +4,7 @@ export interface InviteEmployeeData {
   email: string
   first_name?: string
   last_name?: string
-  role?: string
+  role?: "admin" | "user"
   department_id?: string | null
   location?: string
   hire_date?: string
@@ -14,7 +14,7 @@ export interface InviteEmployeeData {
 export interface UpdateEmployeeData {
   first_name?: string
   last_name?: string
-  role?: string
+  role?: "admin" | "user"
   department_id?: string | null
   location?: string
   hire_date?: string

@@ -1,6 +1,11 @@
+export function parseDateLocal(dateStr: string): Date {
+  const [y, m, d] = dateStr.split("-").map(Number)
+  return new Date(y, m - 1, d)
+}
+
 export function formatPeriod(startDate: string, endDate: string) {
-  const start = new Date(startDate)
-  const end = new Date(endDate)
+  const start = parseDateLocal(startDate)
+  const end = parseDateLocal(endDate)
 
   const endFmt = new Intl.DateTimeFormat("en-US", {
     month: "short",
@@ -38,8 +43,8 @@ export function calculateDays(
   const endPortion = endPeriod === "end_of_day" ? 1.0 : 0.5
   const holidaySet = new Set(holidays)
 
-  const cur = new Date(startDate + "T00:00:00")
-  const end = new Date(endDate + "T00:00:00")
+  const cur = parseDateLocal(startDate)
+  const end = parseDateLocal(endDate)
   let total = 0
 
   while (cur <= end) {

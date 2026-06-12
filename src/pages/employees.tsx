@@ -49,6 +49,7 @@ import {
 } from "@/hooks/use-employees"
 import { useDepartments } from "@/hooks/use-departments"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
+import { DEBOUNCE_DELAY_MS } from "@/lib/constants"
 import { getInitials, getDisplayName } from "@/lib/utils"
 import { addToast } from "@/lib/toast"
 import { formatDate } from "@/lib/date-utils"
@@ -303,7 +304,7 @@ export function EmployeesPage() {
 
   const [activeTab, setActiveTab] = useState<TabValue>("active")
   const [searchQuery, setSearchQuery] = useState("")
-  const debouncedSearch = useDebouncedValue(searchQuery, 300)
+  const debouncedSearch = useDebouncedValue(searchQuery, DEBOUNCE_DELAY_MS)
 
   const [pageSize, setPageSize] = useState(10)
   const [currentPage, setCurrentPage] = useState(1)

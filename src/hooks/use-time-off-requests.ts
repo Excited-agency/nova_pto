@@ -95,11 +95,18 @@ export function useRejectRequestMutation() {
   const { workspace } = useAuth()
 
   return useMutation({
-    mutationFn: ({ requestId, reason }: { requestId: string; reason: string }) =>
+    mutationFn: ({ requestId, reason }: { requestId: string; reason: string; profileId: string }) =>
       rejectTimeOffRequest(requestId, reason),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       if (workspace) {
         queryClient.invalidateQueries({ queryKey: timeOffRequestKeys.all(workspace.id) })
+        queryClient.invalidateQueries({ queryKey: myRequestKeys.all(variables.profileId) })
+        queryClient.invalidateQueries({
+          queryKey: employeeBalanceKeys.allForEmployee(workspace.id, variables.profileId),
+        })
+        queryClient.invalidateQueries({
+          queryKey: balanceAdjustmentLogKeys.allForEmployee(workspace.id, variables.profileId),
+        })
       }
     },
   })
@@ -115,6 +122,7 @@ export function useApproveRequestMutation() {
     onSuccess: (_data, variables) => {
       if (workspace) {
         queryClient.invalidateQueries({ queryKey: timeOffRequestKeys.all(workspace.id) })
+        queryClient.invalidateQueries({ queryKey: myRequestKeys.all(variables.profileId) })
         queryClient.invalidateQueries({
           queryKey: employeeBalanceKeys.allForEmployee(workspace.id, variables.profileId),
         })
@@ -166,8 +174,9 @@ export function useWithdrawRequestMutation() {
   return useMutation({
     mutationFn: (requestId: string) => withdrawTimeOffRequest(requestId, workspace!.id),
     onSuccess: () => {
-      if (profile) {
+      if (profile && workspace) {
         queryClient.invalidateQueries({ queryKey: myRequestKeys.all(profile.id) })
+        queryClient.invalidateQueries({ queryKey: timeOffRequestKeys.all(workspace.id) })
       }
     },
   })
@@ -175,13 +184,14 @@ export function useWithdrawRequestMutation() {
 
 export function useSubmitTimeOffRequestMutation() {
   const queryClient = useQueryClient()
-  const { profile } = useAuth()
+  const { profile, workspace } = useAuth()
 
   return useMutation({
     mutationFn: (params: SubmitTimeOffRequestParams) => submitTimeOffRequest(params),
     onSuccess: () => {
-      if (profile) {
+      if (profile && workspace) {
         queryClient.invalidateQueries({ queryKey: myRequestKeys.all(profile.id) })
+        queryClient.invalidateQueries({ queryKey: timeOffRequestKeys.all(workspace.id) })
       }
     },
   })

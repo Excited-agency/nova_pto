@@ -1,13 +1,11 @@
 import { useState, useMemo, useEffect, useCallback, startTransition } from "react"
 import { useNavigate } from "react-router-dom"
-import { CalendarClock, CircleCheck, CircleX, ListCheck, ListX, Search } from "lucide-react"
+import { CalendarClock, ListCheck, ListX, Search } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { TabGroup } from "@/components/ui/tab-group"
 import { DataTableHeaderCell } from "@/components/ui/data-table-header-cell"
-import { DataTableCell } from "@/components/ui/data-table-cell"
-import { Badge } from "@/components/ui/badge"
 import { Empty } from "@/components/ui/empty"
 import { DataTablePagination } from "@/components/ui/data-table-pagination"
 import { Input } from "@/components/ui/input"
@@ -16,15 +14,14 @@ import { CreateTimeOffRecordModal } from "@/components/create-time-off-record-mo
 import { ApproveTimeOffRequestModal } from "@/components/approve-time-off-request-modal"
 import { RejectTimeOffRequestModal } from "@/components/reject-time-off-request-modal"
 import { RequestDetailsModal } from "@/components/request-details-modal"
+import { RequestRow } from "@/components/requests/request-row"
 import { useTimeOffRequests } from "@/hooks/use-time-off-requests"
 import { useTimeOffCategories } from "@/hooks/use-time-off-categories"
 import { useAuth } from "@/hooks/use-auth"
-import { getInitials } from "@/lib/utils"
 import { addToast } from "@/lib/toast"
 import { generateReport } from "@/lib/generate-report"
-import { formatPeriod, formatDays } from "@/lib/date-utils"
-import { getCategoryDisplay } from "@/lib/request-display"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
+import { DEBOUNCE_DELAY_MS } from "@/lib/constants"
 import type { TimeOffRequest, TimeOffStatus } from "@/types/time-off-request"
 
 type TabValue = "all" | TimeOffStatus
@@ -32,7 +29,7 @@ type TabValue = "all" | TimeOffStatus
 export function RequestsPage() {
   const [activeTab, setActiveTab] = useState<TabValue>("all")
   const [searchQuery, setSearchQuery] = useState("")
-  const debouncedSearch = useDebouncedValue(searchQuery, 300)
+  const debouncedSearch = useDebouncedValue(searchQuery, DEBOUNCE_DELAY_MS)
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [approveModalRequest, setApproveModalRequest] = useState<TimeOffRequest | null>(null)
   const [rejectModalRequest, setRejectModalRequest] = useState<TimeOffRequest | null>(null)
@@ -114,6 +111,10 @@ export function RequestsPage() {
       setDownloading(false)
     }
   }, [workspace])
+
+  const handleRowClick = useCallback((req: TimeOffRequest) => {
+    setDetailsModalRequest(req)
+  }, [])
 
   const handleApprove = useCallback((req: TimeOffRequest) => {
     setApproveModalRequest(req)
@@ -222,85 +223,18 @@ export function RequestsPage() {
             </div>
           ) : (
             <div>
-              {paginatedRequests.map((req, index) => {
-                const days = req.total_days
-                const nameParts = req.employee_name.split(" ")
-                const initials = getInitials(nameParts[0], nameParts.slice(1).join(" "))
-                const isLast = index === paginatedRequests.length - 1
-
-                return (
-                  <div key={req.id} className="flex hover:bg-muted/50 cursor-pointer" onClick={() => setDetailsModalRequest(req)}>
-                    <DataTableCell
-                      type="avatar"
-                      size="md"
-                      className="w-[260px] pl-4"
-                      avatarSrc={req.employee_avatar_url}
-                      avatarAlt={req.employee_name}
-                      avatarFallback={initials}
-                      label={req.employee_name}
-                      highlightQuery={debouncedSearch}
-                      border={!isLast}
-                    />
-                    <DataTableCell
-                      type="text-description"
-                      size="md"
-                      className="w-[200px]"
-                      label={formatPeriod(req.start_date, req.end_date)}
-                      description={formatDays(days)}
-                      border={!isLast}
-                    />
-                    <DataTableCell
-                      type="text"
-                      size="md"
-                      className="w-[150px]"
-                      labelClassName="font-medium"
-                      label={getCategoryDisplay(req, categoryMap)}
-                      border={!isLast}
-                    />
-                    <DataTableCell
-                      type="text"
-                      size="md"
-                      className="flex-1"
-                      label={req.comment ?? "—"}
-                      border={!isLast}
-                    />
-                    <DataTableCell
-                      type="badge"
-                      size="md"
-                      className="w-[110px]"
-                      badgeNode={
-                        <Badge variant={req.status}>
-                          {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
-                        </Badge>
-                      }
-                      border={!isLast}
-                    />
-                    <div className="relative flex items-center justify-end gap-2 w-24 h-[72px] px-3 py-2">
-                      {req.status === "pending" && (
-                        <>
-                          <Button
-                            variant="outline"
-                            size="icon-sm"
-                            onClick={(e) => { e.stopPropagation(); handleApprove(req) }}
-                            className="text-[var(--color-success)] hover:bg-[var(--color-success-light)] hover:text-[var(--color-success)]"
-                          >
-                            <CircleCheck className="size-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="icon-sm"
-                            onClick={(e) => { e.stopPropagation(); handleReject(req) }}
-                            className="text-[var(--color-error)] hover:bg-[var(--color-error-light)] hover:text-[var(--color-error)]"
-                          >
-                            <CircleX className="size-4" />
-                          </Button>
-                        </>
-                      )}
-                      {!isLast && <div className="absolute bottom-0 left-0 right-0 border-b border-border" />}
-                    </div>
-                  </div>
-                )
-              })}
+              {paginatedRequests.map((req, index) => (
+                <RequestRow
+                  key={req.id}
+                  req={req}
+                  categoryMap={categoryMap}
+                  debouncedSearch={debouncedSearch}
+                  isLast={index === paginatedRequests.length - 1}
+                  onRowClick={handleRowClick}
+                  onApprove={handleApprove}
+                  onReject={handleReject}
+                />
+              ))}
             </div>
           )}
         </div>

@@ -21,6 +21,7 @@ export function useTimeOffCategories() {
     queryKey: timeOffCategoryKeys.list(workspace?.id ?? ""),
     queryFn: () => fetchTimeOffCategories(workspace!.id),
     enabled: !!workspace,
+    staleTime: 5 * 60_000,
     placeholderData: keepPreviousData,
   })
 }

@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
 import { Users, ChevronRight } from "lucide-react"
 
@@ -6,11 +7,31 @@ import { BreadcrumbItem } from "@/components/ui/breadcrumb-item"
 import { EmployeeForm, type EmployeeFormData } from "@/components/employee-form"
 import { uploadImage, removeImage } from "@/lib/settings-service"
 import { useInviteEmployeeMutation } from "@/hooks/use-employees"
+import { useNavigationGuard } from "@/contexts/navigation-guard-context"
 import { addToast } from "@/lib/toast"
 
 export function AddEmployeePage() {
   const navigate = useNavigate()
   const inviteMutation = useInviteEmployeeMutation()
+  const { registerGuard, unregisterGuard } = useNavigationGuard()
+  const [isDirty, setIsDirty] = useState(false)
+
+  useEffect(() => {
+    registerGuard(() => {
+      if (!isDirty) return true
+      return window.confirm("You have unsaved changes. Are you sure you want to leave?")
+    })
+    return () => unregisterGuard()
+  }, [isDirty, registerGuard, unregisterGuard])
+
+  useEffect(() => {
+    if (!isDirty) return
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault() }
+    window.addEventListener("beforeunload", handler)
+    return () => window.removeEventListener("beforeunload", handler)
+  }, [isDirty])
+
+  const handleDirtyChange = useCallback((dirty: boolean) => setIsDirty(dirty), [])
 
   async function handleSubmit(data: EmployeeFormData) {
     let avatarUrl: string | null = null
@@ -49,6 +70,7 @@ export function AddEmployeePage() {
       {/* Header */}
       <div className="flex items-center gap-2 border-b border-border px-4 h-[60px] shrink-0">
         <button
+          aria-label="Back to employees"
           className="flex items-center justify-center size-7 rounded-[10px] shrink-0 text-foreground hover:bg-accent transition-colors"
           onClick={() => navigate("/employees")}
         >
@@ -77,6 +99,7 @@ export function AddEmployeePage() {
           submitLabel="Add employee"
           onSubmit={handleSubmit}
           onCancel={() => navigate("/employees")}
+          onDirtyChange={handleDirtyChange}
         />
       </div>
     </div>

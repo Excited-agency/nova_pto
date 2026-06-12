@@ -41,8 +41,8 @@ export function CalendarPage() {
 
   const navigate = useNavigate()
   const { workspace, profile } = useAuth()
-  const isAdmin = profile?.role === "admin"
-  const canNavigate = isAdmin || profile?.role === "owner"
+  const isAdmin = profile?.role === "admin" || profile?.role === "owner"
+  const canNavigate = isAdmin
   const { data: requests = [] } = useTimeOffRequests()
   const { data: categories = [] } = useTimeOffCategories()
   const { data: holidays = [] } = useHolidays()

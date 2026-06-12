@@ -1,5 +1,4 @@
 import { useState, useCallback, useMemo, useRef } from "react"
-import Papa from "papaparse"
 import { useQueryClient } from "@tanstack/react-query"
 import { useAuth } from "@/hooks/use-auth"
 import { useDepartments } from "@/hooks/use-departments"
@@ -101,75 +100,80 @@ export function useCsvImport() {
 
       const reader = new FileReader()
       reader.onload = async (e) => {
-        const text = e.target?.result as string
-        if (!text?.trim()) {
-          setFileError("The file appears to be empty")
-          return
-        }
-
-        const result = Papa.parse<Record<string, string>>(text, {
-          header: true,
-          skipEmptyLines: true,
-        })
-
-        if (result.errors.length > 0 && result.data.length === 0) {
-          setFileError("Could not parse the CSV file. Please check the format.")
-          return
-        }
-
-        const headers = result.meta.fields ?? []
-        if (headers.length === 0) {
-          setFileError("No columns found in the CSV file")
-          return
-        }
-
-        const mapping = mapHeaders(headers)
-
-        // Check if we matched at least email
-        if (!Array.from(mapping.columnToField.values()).includes("email")) {
-          setFileError(
-            'Could not find an "Email" column. Expected headers like: Email, Name, Department, Role, Location, Hire Date'
-          )
-          return
-        }
-
-        if (result.data.length === 0) {
-          setFileError("No employee data found in the file")
-          return
-        }
-
-        // Fetch existing workspace emails to detect duplicates
-        let existingEmails: Set<string> | undefined
-        if (workspace) {
-          existingEmails = await fetchWorkspaceEmails(workspace.id)
-        }
-
-        const { rows, validations: rowValidations } = processRows({
-          rawRows: result.data,
-          mapping,
-          departmentNameToId,
-          existingEmails,
-        })
-
-        if (rows.length === 0) {
-          setFileError("No valid rows found in the file")
-          return
-        }
-
-        setHeaderMapping(mapping)
-        setParsedRows(rows)
-        setValidations(rowValidations)
-
-        // Select all valid rows by default
-        const validIndices = new Set<number>()
-        for (const row of rows) {
-          if (!rowHasErrors(row.index, rowValidations)) {
-            validIndices.add(row.index)
+        try {
+          const text = e.target?.result as string
+          if (!text?.trim()) {
+            setFileError("The file appears to be empty")
+            return
           }
+
+          const { default: Papa } = await import("papaparse")
+          const result = Papa.parse<Record<string, string>>(text, {
+            header: true,
+            skipEmptyLines: true,
+          })
+
+          if (result.errors.length > 0 && result.data.length === 0) {
+            setFileError("Could not parse the CSV file. Please check the format.")
+            return
+          }
+
+          const headers = result.meta.fields ?? []
+          if (headers.length === 0) {
+            setFileError("No columns found in the CSV file")
+            return
+          }
+
+          const mapping = mapHeaders(headers)
+
+          // Check if we matched at least email
+          if (!Array.from(mapping.columnToField.values()).includes("email")) {
+            setFileError(
+              'Could not find an "Email" column. Expected headers like: Email, Name, Department, Role, Location, Hire Date'
+            )
+            return
+          }
+
+          if (result.data.length === 0) {
+            setFileError("No employee data found in the file")
+            return
+          }
+
+          // Fetch existing workspace emails to detect duplicates
+          let existingEmails: Set<string> | undefined
+          if (workspace) {
+            existingEmails = await fetchWorkspaceEmails(workspace.id)
+          }
+
+          const { rows, validations: rowValidations } = processRows({
+            rawRows: result.data,
+            mapping,
+            departmentNameToId,
+            existingEmails,
+          })
+
+          if (rows.length === 0) {
+            setFileError("No valid rows found in the file")
+            return
+          }
+
+          setHeaderMapping(mapping)
+          setParsedRows(rows)
+          setValidations(rowValidations)
+
+          // Select all valid rows by default
+          const validIndices = new Set<number>()
+          for (const row of rows) {
+            if (!rowHasErrors(row.index, rowValidations)) {
+              validIndices.add(row.index)
+            }
+          }
+          setSelectedIndices(validIndices)
+          setPreviewPage(0)
+          setStep("preview")
+        } catch (err) {
+          setFileError(err instanceof Error ? err.message : "An unexpected error occurred. Please try again.")
         }
-        setSelectedIndices(validIndices)
-        setPreviewPage(0)
-        setStep("preview")
       }
 
       reader.onerror = () => {

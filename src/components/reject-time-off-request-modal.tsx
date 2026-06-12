@@ -42,7 +42,7 @@ export function RejectTimeOffRequestModal({
     if (!request || !reason.trim()) return
 
     rejectMutation.mutate(
-      { requestId: request.id, reason: reason.trim() },
+      { requestId: request.id, reason: reason.trim(), profileId: request.profile_id },
       {
         onSuccess: () => {
           addToast({ title: "Request rejected" })

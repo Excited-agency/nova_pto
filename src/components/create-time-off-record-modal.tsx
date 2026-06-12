@@ -72,7 +72,7 @@ export function CreateTimeOffRecordModal({
   initialStartDate,
 }: CreateTimeOffRecordModalProps) {
   const { workspace, profile } = useAuth()
-  const isAdmin = profile?.role === "admin"
+  const isAdmin = profile?.role === "admin" || profile?.role === "owner"
   const { data: employees = [] } = useActiveEmployees()
   const { data: categories = [] } = useTimeOffCategories()
   const { data: holidayRows = [] } = useHolidays()
@@ -96,13 +96,7 @@ export function CreateTimeOffRecordModal({
     },
   })
 
-  const employeeId = watch("employeeId")
-  const categoryId = watch("categoryId")
-  const startDate = watch("startDate")
-  const endDate = watch("endDate")
-  const startPeriod = watch("startPeriod")
-  const endPeriod = watch("endPeriod")
-  const comment = watch("comment")
+  const { employeeId, categoryId, startDate, endDate, startPeriod, endPeriod, comment } = watch()
 
   // Reset state when modal opens/closes
   useEffect(() => {

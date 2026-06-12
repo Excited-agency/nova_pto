@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { FileClock, ChevronRight } from "lucide-react"
 
@@ -10,6 +10,7 @@ import {
   useCategory,
   useUpdateCategoryMutation,
 } from "@/hooks/use-time-off-categories"
+import { useNavigationGuard } from "@/contexts/navigation-guard-context"
 import { addToast } from "@/lib/toast"
 import type { TimeOffCategory } from "@/types/time-off-category"
 
@@ -40,6 +41,8 @@ export function EditCategoryPage() {
   const { id } = useParams<{ id: string }>()
   const { data: category, isLoading, isError } = useCategory(id)
   const updateMutation = useUpdateCategoryMutation()
+  const { registerGuard, unregisterGuard } = useNavigationGuard()
+  const [isDirty, setIsDirty] = useState(false)
 
   useEffect(() => {
     if (isError) {
@@ -47,6 +50,23 @@ export function EditCategoryPage() {
       navigate("/time-off-setup")
     }
   }, [isError, navigate])
+
+  useEffect(() => {
+    registerGuard(() => {
+      if (!isDirty) return true
+      return window.confirm("You have unsaved changes. Are you sure you want to leave?")
+    })
+    return () => unregisterGuard()
+  }, [isDirty, registerGuard, unregisterGuard])
+
+  useEffect(() => {
+    if (!isDirty) return
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault() }
+    window.addEventListener("beforeunload", handler)
+    return () => window.removeEventListener("beforeunload", handler)
+  }, [isDirty])
+
+  const handleDirtyChange = useCallback((dirty: boolean) => setIsDirty(dirty), [])
 
   const initialData = useMemo(() => {
     if (!category) return undefined
@@ -124,6 +144,7 @@ export function EditCategoryPage() {
       {/* Header */}
       <div className="flex items-center gap-2 border-b border-border px-4 h-[60px] shrink-0">
         <button
+          aria-label="Back to time-off setup"
           className="flex items-center justify-center size-7 rounded-[10px] shrink-0 text-foreground hover:bg-accent transition-colors"
           onClick={() => navigate("/time-off-setup")}
         >
@@ -153,6 +174,7 @@ export function EditCategoryPage() {
           submitLabel="Save changes"
           onSubmit={handleSubmit}
           onCancel={() => navigate("/time-off-setup")}
+          onDirtyChange={handleDirtyChange}
         />
       </div>
     </div>

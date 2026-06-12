@@ -46,6 +46,16 @@ describe("processRows — email validation", () => {
     expect(rowHasErrors(0, validations)).toBe(false)
   })
 
+  it("errors when TLD is a single character (stricter regex requires 2+ chars)", () => {
+    const { validations } = processRows({
+      rawRows: [{ Email: "john@example.c", "First Name": "John", "Last Name": "Doe" }],
+      mapping,
+      departmentNameToId: deptMap,
+    })
+    expect(rowHasErrors(0, validations)).toBe(true)
+    expect(validations.get(0)!.some(v => v.message === "Invalid email format")).toBe(true)
+  })
+
   it("errors when email already exists in workspace", () => {
     const { validations } = processRows({
       rawRows: [{ Email: "existing@example.com", "First Name": "Jane", "Last Name": "Doe" }],

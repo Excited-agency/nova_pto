@@ -45,7 +45,7 @@ const employeeFormSchema = z.object({
   departmentId: z.string().min(1, "Department is required"),
   role: z.string().min(1, "Role is required"),
   location: z.string().min(1, "Location is required"),
-  startDate: z.date({ required_error: "Start date is required" }),
+  startDate: z.date().optional(),
 })
 
 type EmployeeFormValues = z.infer<typeof employeeFormSchema>
@@ -122,13 +122,7 @@ export function EmployeeForm({
     mode: "onChange",
   })
 
-  const firstName = watch("firstName")
-  const lastName = watch("lastName")
-  const role = watch("role")
-  const email = watch("email")
-  const departmentId = watch("departmentId")
-  const location = watch("location")
-  const startDate = watch("startDate")
+  const { firstName, lastName, role, email, departmentId, location, startDate } = watch()
 
   // Snapshot initial values once on mount (edit mode only)
   const initialSnapshot = useMemo(() => {
@@ -156,7 +150,6 @@ export function EmployeeForm({
 
   const displayName = getDisplayName(firstName, lastName)
 
-  const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
   const emailError = errors.email != null
 
   const saveTooltip = useMemo(() => {
@@ -166,11 +159,10 @@ export function EmployeeForm({
       departmentId.length > 0 &&
       role.length > 0 &&
       location.trim().length > 0 &&
-      startDate !== undefined &&
       email.trim().length > 0
 
     if (mode === "add") {
-      if (allFieldsFilled && !isValidEmail) return "Please enter a valid work email address"
+      if (allFieldsFilled && emailError) return "Please enter a valid work email address"
       if (!isValid || !!fileError) return "Please fill in all required fields to continue"
       return undefined
     }
@@ -179,7 +171,7 @@ export function EmployeeForm({
     if (!isValid || !!fileError) return "Please fill in all required fields correctly"
     if (!isDirty) return "No changes to save"
     return undefined
-  }, [mode, isValid, isValidEmail, fileError, isDirty, firstName, lastName, departmentId, role, location, startDate, email])
+  }, [mode, isValid, emailError, fileError, isDirty, firstName, lastName, departmentId, role, location, email])
 
   const initials = getInitials(firstName, lastName)
 
