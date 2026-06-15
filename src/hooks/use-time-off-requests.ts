@@ -177,6 +177,8 @@ export function useWithdrawRequestMutation() {
       if (profile && workspace) {
         queryClient.invalidateQueries({ queryKey: myRequestKeys.all(profile.id) })
         queryClient.invalidateQueries({ queryKey: timeOffRequestKeys.all(workspace.id) })
+        queryClient.invalidateQueries({ queryKey: employeeBalanceKeys.allForEmployee(workspace.id, profile.id) })
+        queryClient.invalidateQueries({ queryKey: balanceAdjustmentLogKeys.allForEmployee(workspace.id, profile.id) })
       }
     },
   })

@@ -13,7 +13,7 @@ import {
   type UpdateEmployeeData,
   type InviteEmployeeData,
 } from "@/lib/employee-service"
-import { employeeKeys, departmentKeys, activeEmployeeKeys } from "@/lib/query-keys"
+import { employeeKeys, departmentKeys, activeEmployeeKeys, employeeBalanceKeys, balanceAdjustmentLogKeys } from "@/lib/query-keys"
 import type { EmployeeStatus } from "@/types/employee"
 
 export function useEmployeeList(status: EmployeeStatus) {
@@ -73,10 +73,12 @@ export function useDeleteEmployeeMutation() {
 
   return useMutation({
     mutationFn: (employeeId: string) => deleteEmployee(employeeId),
-    onSuccess: () => {
+    onSuccess: (_data, employeeId) => {
       if (workspace) {
         queryClient.invalidateQueries({ queryKey: employeeKeys.all(workspace.id) })
         queryClient.invalidateQueries({ queryKey: activeEmployeeKeys.list(workspace.id) })
+        queryClient.invalidateQueries({ queryKey: employeeBalanceKeys.allForEmployee(workspace.id, employeeId) })
+        queryClient.invalidateQueries({ queryKey: balanceAdjustmentLogKeys.allForEmployee(workspace.id, employeeId) })
       }
     },
   })
@@ -88,10 +90,12 @@ export function usePurgeEmployeeMutation() {
 
   return useMutation({
     mutationFn: (employeeId: string) => purgeEmployee(employeeId),
-    onSuccess: () => {
+    onSuccess: (_data, employeeId) => {
       if (workspace) {
         queryClient.invalidateQueries({ queryKey: employeeKeys.all(workspace.id) })
         queryClient.invalidateQueries({ queryKey: activeEmployeeKeys.list(workspace.id) })
+        queryClient.invalidateQueries({ queryKey: employeeBalanceKeys.allForEmployee(workspace.id, employeeId) })
+        queryClient.invalidateQueries({ queryKey: balanceAdjustmentLogKeys.allForEmployee(workspace.id, employeeId) })
       }
     },
   })
