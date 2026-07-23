@@ -1,4 +1,4 @@
-export const legacyTypeLabels: Record<string, string> = {
+const legacyTypeLabels: Record<string, string> = {
   vacation: "Vacation",
   sick_leave: "Sick Leave",
   personal: "Personal",

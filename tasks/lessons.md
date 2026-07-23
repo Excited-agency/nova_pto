@@ -14,3 +14,17 @@
 3. Для змін у role/permission — завжди додавати тест для нової ролі
 4. Для змін у валідації (regex, Zod schema) — додати тест на граничну умову
 5. `npm test` наприкінці — кількість тестів має зрости на кількість нових кейсів
+
+## Правило: REVOKE EXECUTE у ролі — no-op, якщо грант є в PUBLIC
+
+**Правило:** Postgres при створенні функції видає `EXECUTE` ролі `PUBLIC`, і `anon`/`authenticated` успадковують його. `REVOKE EXECUTE ... FROM anon` НЕ прибере доступ, поки залишається грант у `PUBLIC`. Треба `REVOKE EXECUTE ... FROM PUBLIC, anon`. `authenticated` зазвичай має ще й явний грант (міграція 20260612100000), тож він переживе revoke PUBLIC — саме тому app RPC не ламаються.
+
+**Чому:** Перша версія міграції 20260723000000 робила лише `REVOKE ... FROM anon` — перевірка `has_function_privilege('anon', fn, 'EXECUTE')` усе одно повертала `true` (бо перевіряє всі шляхи грантів, включно з PUBLIC).
+
+**Як перевіряти:** після міграції — `has_function_privilege('<role>','<fn>(<sig>)','EXECUTE')` через `docker exec supabase_db_* psql`. Тригерні функції (RETURNS trigger) PostgREST взагалі не експонує → з клієнта дають `PGRST202`, а не `42501`.
+
+## Правило: перед CREATE OR REPLACE функції — читати НАЙПІЗНІШУ міграцію, що її визначає
+
+**Правило:** Одна функція може перевизначатись у кількох міграціях. Перед `CREATE OR REPLACE` знайти всі визначення (`grep -rl "FUNCTION <name>" supabase/migrations/`) і брати тіло з найпізнішої, інакше відкотиш пізніші фікси.
+
+**Чому:** Перша версія міграції відтворювала `bulk_update_employee_balances` зі старого тіла (20260408100000), втрачаючи валідацію категорій і запис у `balance_adjustment_log`, додані в 20260612090000. Виявив `supabase-migration-reviewer`. Підсумок: обидва workspace-guard'и (bulk + replace_imported_holidays) вже були в live-схемі → рекреація взагалі не потрібна.

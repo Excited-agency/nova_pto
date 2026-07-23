@@ -49,7 +49,7 @@ import {
 } from "@/hooks/use-employees"
 import { useDepartments } from "@/hooks/use-departments"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
-import { DEBOUNCE_DELAY_MS } from "@/lib/constants"
+import { DEBOUNCE_DELAY_MS, EMPLOYEES_PAGE_SIZE } from "@/lib/constants"
 import { getInitials, getDisplayName } from "@/lib/utils"
 import { addToast } from "@/lib/toast"
 import { formatDate } from "@/lib/date-utils"
@@ -550,6 +550,13 @@ export function EmployeesPage() {
           onSearchChange={setSearchQuery}
           counts={adjustedCounts}
         />
+
+        {counts[activeTab] > employees.length && (
+          <div className="rounded-lg bg-warning-light px-4 py-3 text-sm text-warning-foreground">
+            Showing the first {employees.length} of {counts[activeTab]} employees.
+            Search and pagination cover only the loaded records.
+          </div>
+        )}
 
         {/* Table */}
         <div>

@@ -17,7 +17,7 @@ function parseDate(value: string): string {
 
   // Try ISO format first: YYYY-MM-DD
   if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(trimmed)) {
-    const d = new Date(trimmed + "T00:00:00")
+    const d = new Date(trimmed + "T00:00:00Z")
     if (!isNaN(d.getTime())) return trimmed
   }
 
@@ -26,7 +26,7 @@ function parseDate(value: string): string {
   if (usMatch) {
     const [, month, day, year] = usMatch
     const iso = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`
-    const d = new Date(iso + "T00:00:00")
+    const d = new Date(iso + "T00:00:00Z")
     if (!isNaN(d.getTime())) return iso
   }
 
@@ -35,7 +35,7 @@ function parseDate(value: string): string {
   if (euDotMatch) {
     const [, day, month, year] = euDotMatch
     const iso = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`
-    const d = new Date(iso + "T00:00:00")
+    const d = new Date(iso + "T00:00:00Z")
     if (!isNaN(d.getTime())) return iso
   }
 
@@ -45,7 +45,7 @@ function parseDate(value: string): string {
     const [, first, second, year] = slashMatch
     if (Number(first) > 12) {
       const iso = `${year}-${second.padStart(2, "0")}-${first.padStart(2, "0")}`
-      const d = new Date(iso + "T00:00:00")
+      const d = new Date(iso + "T00:00:00Z")
       if (!isNaN(d.getTime())) return iso
     }
   }

@@ -122,7 +122,7 @@ export function EmployeeForm({
     mode: "onChange",
   })
 
-  const { firstName, lastName, role, email, departmentId, location, startDate } = watch()
+  const { firstName, lastName, role, email, departmentId, location } = watch()
 
   // Snapshot initial values once on mount (edit mode only)
   const initialSnapshot = useMemo(() => {

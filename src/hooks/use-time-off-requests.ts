@@ -4,10 +4,8 @@ import {
   fetchTimeOffRequests,
   fetchEmployeeBalance,
   fetchEmployeeBalances,
-  fetchBalanceAdjustmentLog,
   bulkUpdateEmployeeBalances,
   createTimeOffRecord,
-  updateTimeOffRequestStatus,
   approveTimeOffRequest,
   rejectTimeOffRequest,
   fetchActiveEmployeesForCombobox,
@@ -17,8 +15,6 @@ import {
   type CreateTimeOffRecordParams,
   type SubmitTimeOffRequestParams,
 } from "@/lib/time-off-request-service"
-import type { BalanceAdjustmentLog } from "@/types/balance-adjustment-log"
-import type { TimeOffStatus } from "@/types/time-off-request"
 import { timeOffRequestKeys, employeeBalanceKeys, activeEmployeeKeys, myRequestKeys, balanceAdjustmentLogKeys } from "@/lib/query-keys"
 
 export function useTimeOffRequests() {
@@ -29,6 +25,7 @@ export function useTimeOffRequests() {
     queryFn: () => fetchTimeOffRequests(workspace!.id),
     enabled: !!workspace,
     placeholderData: keepPreviousData,
+    staleTime: 5 * 60_000,
   })
 }
 
@@ -70,21 +67,6 @@ export function useCreateTimeOffRecordMutation() {
         queryClient.invalidateQueries({
           queryKey: balanceAdjustmentLogKeys.allForEmployee(workspace.id, variables.employee_id),
         })
-      }
-    },
-  })
-}
-
-export function useUpdateRequestStatusMutation() {
-  const queryClient = useQueryClient()
-  const { workspace } = useAuth()
-
-  return useMutation({
-    mutationFn: ({ requestId, status }: { requestId: string; status: TimeOffStatus }) =>
-      updateTimeOffRequestStatus(requestId, status, workspace!.id),
-    onSuccess: () => {
-      if (workspace) {
-        queryClient.invalidateQueries({ queryKey: timeOffRequestKeys.all(workspace.id) })
       }
     },
   })
@@ -196,17 +178,6 @@ export function useSubmitTimeOffRequestMutation() {
         queryClient.invalidateQueries({ queryKey: timeOffRequestKeys.all(workspace.id) })
       }
     },
-  })
-}
-
-export function useBalanceAdjustmentLog(employeeId: string | undefined) {
-  const { workspace } = useAuth()
-
-  return useQuery({
-    queryKey: balanceAdjustmentLogKeys.allForEmployee(workspace?.id ?? "", employeeId ?? ""),
-    queryFn: (): Promise<BalanceAdjustmentLog[]> =>
-      fetchBalanceAdjustmentLog(employeeId!, workspace!.id),
-    enabled: !!employeeId && !!workspace,
   })
 }
 

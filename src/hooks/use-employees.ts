@@ -13,7 +13,8 @@ import {
   type UpdateEmployeeData,
   type InviteEmployeeData,
 } from "@/lib/employee-service"
-import { employeeKeys, departmentKeys, activeEmployeeKeys, employeeBalanceKeys, balanceAdjustmentLogKeys } from "@/lib/query-keys"
+import { employeeKeys, activeEmployeeKeys, employeeBalanceKeys, balanceAdjustmentLogKeys } from "@/lib/query-keys"
+import { EMPLOYEES_PAGE_SIZE } from "@/lib/constants"
 import type { EmployeeStatus } from "@/types/employee"
 
 export function useEmployeeList(status: EmployeeStatus) {
@@ -21,9 +22,10 @@ export function useEmployeeList(status: EmployeeStatus) {
 
   return useQuery({
     queryKey: employeeKeys.list(workspace?.id ?? "", status),
-    queryFn: () => fetchEmployees(workspace!.id, status, 0, 100),
+    queryFn: () => fetchEmployees(workspace!.id, status, 0, EMPLOYEES_PAGE_SIZE),
     enabled: !!workspace,
     placeholderData: keepPreviousData,
+    staleTime: 5 * 60_000,
     select: (result) => result.data,
   })
 }
@@ -36,6 +38,7 @@ export function useEmployeeCounts() {
     queryFn: () => fetchEmployeeCounts(workspace!.id),
     enabled: !!workspace,
     placeholderData: keepPreviousData,
+    staleTime: 5 * 60_000,
   })
 }
 

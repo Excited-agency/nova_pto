@@ -114,7 +114,7 @@ Defined in `src/App.tsx`. All page components are lazy-loaded via `React.lazy` +
 - `/employees/import` — `ImportPreviewPage` (CSV bulk employee import with header mapping and validation)
 - `/settings` — role-resolved: `SettingsPage` (admin — workspace name/logo, profile name/avatar, departments CRUD, dirty-state guard) or `UserSettingsPage` (non-admin — employee-only profile editor for first/last name + avatar)
 - `/check-email` — `CheckEmailPage` (OTP 6-digit code entry, part of the magic-link auth sequence)
-- `/calendar` — stub placeholder
+- `/calendar` — `CalendarPage` (month grid of time-off, category/status filters, month navigation, report download)
 - `/time-off-setup` — `TimeOffSetupPage` (categories CRUD with drag-and-drop reordering via `@dnd-kit`)
 - `/time-off-setup/new` — `AddCategoryPage` (uses shared `category-form.tsx`)
 - `/time-off-setup/:id/edit` — `EditCategoryPage` (uses shared `category-form.tsx`)
@@ -142,7 +142,7 @@ Defined in `src/App.tsx`. All page components are lazy-loaded via `React.lazy` +
 - `src/lib/founder-flow.ts` — first-time workspace + profile provisioning (idempotent)
 - `src/lib/toast.ts` — pub-sub toast notification helper (`addToast`, `removeToast`, `subscribe`, `getSnapshot`)
 - `src/lib/query-keys.ts` — TanStack Query key factory (centralized cache key definitions)
-- `src/lib/constants.ts` — `IMAGE_ALLOWED_TYPES`, `IMAGE_MAX_SIZE` (2 MB), `EMPLOYEES_PAGE_SIZE` (100), `AUTH_SAFETY_TIMEOUT` (10 s)
+- `src/lib/constants.ts` — `IMAGE_ALLOWED_TYPES`, `IMAGE_MAX_SIZE` (5 MB), `EMPLOYEES_PAGE_SIZE` (100), `TIME_OFF_REQUESTS_LIMIT` (1000), `BALANCE_LOG_LIMIT` (500), `AUTH_SAFETY_TIMEOUT` (10 s)
 - `src/lib/utils.ts` — `cn()` (clsx + tailwind-merge), `getInitials(firstName, lastName)`, `getDisplayName(firstName, lastName)`
 - `src/lib/date-utils.ts` / `src/lib/calendar-utils.ts` — date parsing, formatting, and calendar calculations
 - `src/lib/category-colors.ts` — color palette for time-off categories
@@ -165,7 +165,7 @@ All in `src/hooks/`. Each wraps one domain's service calls in TanStack Query:
 - `use-time-off-categories.ts` — category CRUD queries/mutations
 - `use-departments.ts` — department CRUD queries/mutations
 - `use-holidays.ts` — holiday management queries/mutations
-- `use-image-upload.ts` — avatar/logo file selection: exposes `file`, `preview`, `error`, `inputRef`, `handleSelect`, `handleRemove`. Validates PNG/JPEG ≤ 2 MB.
+- `use-image-upload.ts` — avatar/logo file selection: exposes `file`, `preview`, `error`, `inputRef`, `handleSelect`, `handleRemove`. Validates PNG/JPEG ≤ 5 MB.
 - `use-debounced-value.ts` — debounced value for search inputs
 - `use-csv-import.ts` — manages multi-step CSV employee import workflow (upload → preview → import → results), including file parsing, header mapping, validation, and progress tracking
 
@@ -197,7 +197,7 @@ Non-dashboard: `src/components/auth-layout.tsx`, `protected-route.tsx`, `admin-r
 UI primitives in `src/components/ui/`. Key groups:
 - **Combobox**: `combobox-menu.tsx`, `combobox-search-field.tsx`, `combobox-menu-item.tsx`, `combobox-menu-label.tsx`. `location-combobox.tsx` uses `src/data/cities.json` + `src/data/countries.ts`. `employee-combobox.tsx` accepts `employees: ComboboxEmployee[]` prop.
 - **Data table**: `data-table-header-cell.tsx`, `data-table-cell.tsx`, `data-table-pagination.tsx`
-- **Calendar primitives**: `calendar-cell.tsx`, `calendar-day-button.tsx`, `calendar-event-slot.tsx`, `calendar-header.tsx`, `calendar-arrow-button.tsx`. Higher-level: `src/components/calendar/` — `CalendarMonthGrid`, `CalendarWeekRow`, `CalendarEventBar`, `CalendarFilters` (built, not yet wired to live page).
+- **Calendar primitives**: `calendar-day-button.tsx`, `calendar-header.tsx`, `calendar-arrow-button.tsx`. Higher-level: `src/components/calendar/` — `CalendarMonthGrid`, `CalendarWeekRow`, `CalendarEventBar`, `CalendarFilters` (wired to the live `/calendar` page via `src/pages/calendar.tsx`).
 - **Shared forms**: `employee-form.tsx` (Add/EditEmployeePage, `mode: "add"|"edit"`), `category-form.tsx` (Add/EditCategoryPage, same pattern).
 
 Coding rules (named exports, data-slot, cva, Radix imports, Button loading prop): see `project-conventions` skill.

@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import { TIME_OFF_REQUESTS_LIMIT, BALANCE_LOG_LIMIT } from "@/lib/constants"
 import type { TimeOffRequest, TimeOffStatus, CreateTimeOffRecordParams, SubmitTimeOffRequestParams, ComboboxEmployee } from "@/types/time-off-request"
 import type { EmployeeBalance } from "@/types/employee-balance"
 import type { BalanceAdjustmentLog } from "@/types/balance-adjustment-log"
@@ -17,6 +18,7 @@ export async function fetchTimeOffRequests(workspaceId: string) {
     .eq("workspace_id", workspaceId)
     .neq("status", "withdrawn")
     .order("created_at", { ascending: false })
+    .limit(TIME_OFF_REQUESTS_LIMIT)
 
   if (error) throw error
   return (data ?? []) as TimeOffRequest[]
@@ -248,6 +250,7 @@ export async function fetchBalanceAdjustmentLog(
     .eq("employee_id", employeeId)
     .eq("workspace_id", workspaceId)
     .order("created_at", { ascending: false })
+    .limit(BALANCE_LOG_LIMIT)
 
   if (error) throw error
   return (data ?? []) as BalanceAdjustmentLog[]

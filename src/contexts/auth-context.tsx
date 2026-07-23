@@ -25,6 +25,11 @@ interface AuthContextType {
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+// Explicit column list for profile reads (matches the Profile type) — avoids
+// transferring every column on the auth hot path.
+const PROFILE_COLUMNS =
+  "id, workspace_id, role, email, first_name, last_name, avatar_url, status, department_id, location, hire_date, created_at"
+
 async function withRetry<T>(
   fn: () => Promise<T>,
   maxAttempts: number = 3,
@@ -83,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: initialProfileData, error: profileError } = await supabase
       .from("profiles")
-      .select("*")
+      .select(PROFILE_COLUMNS)
       .eq("id", userId)
       .maybeSingle()
     let profileData = initialProfileData
@@ -105,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         const { data } = await supabase
           .from("profiles")
-          .select("*")
+          .select(PROFILE_COLUMNS)
           .eq("id", userId)
           .maybeSingle()
         profileData = data
@@ -302,7 +307,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!currentUser) return
     const { data, error } = await supabase
       .from("profiles")
-      .select("*")
+      .select(PROFILE_COLUMNS)
       .eq("id", currentUser.id)
       .maybeSingle()
     if (error) {
