@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import { HOLIDAYS_LIMIT } from "@/lib/constants"
 import type { Holiday, NagerHoliday, CreateHolidayData } from "@/types/holiday"
 
 export interface ReplaceHolidayItem {
@@ -39,6 +40,7 @@ export async function fetchHolidays(workspaceId: string): Promise<Holiday[]> {
     .select("id, workspace_id, name, date, is_custom, country_code, year")
     .eq("workspace_id", workspaceId)
     .order("date", { ascending: true })
+    .limit(HOLIDAYS_LIMIT)
 
   if (error) throw error
   return data as Holiday[]

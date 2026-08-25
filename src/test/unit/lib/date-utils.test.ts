@@ -12,38 +12,38 @@ import {
 describe("calculateDays", () => {
   it("counts Mon–Fri as 5 days (full days)", () => {
     // 2026-05-11 Mon → 2026-05-15 Fri
-    expect(calculateDays("2026-05-11", "2026-05-15")).toBe(5)
+    expect(calculateDays("2026-05-11", "2026-05-15", "morning", "end_of_day", [])).toBe(5)
   })
 
   it("skips Saturday and Sunday", () => {
     // 2026-05-15 Fri → 2026-05-18 Mon = 2 days (Fri + Mon)
-    expect(calculateDays("2026-05-15", "2026-05-18")).toBe(2)
+    expect(calculateDays("2026-05-15", "2026-05-18", "morning", "end_of_day", [])).toBe(2)
   })
 
   it("counts single full day as 1", () => {
-    expect(calculateDays("2026-05-11", "2026-05-11")).toBe(1)
+    expect(calculateDays("2026-05-11", "2026-05-11", "morning", "end_of_day", [])).toBe(1)
   })
 
   it("counts half-day start (midday) on single day as 0.5", () => {
-    expect(calculateDays("2026-05-11", "2026-05-11", "midday", "end_of_day")).toBe(0.5)
+    expect(calculateDays("2026-05-11", "2026-05-11", "midday", "end_of_day", [])).toBe(0.5)
   })
 
   it("counts half-day end (midday) on single day as 0.5", () => {
-    expect(calculateDays("2026-05-11", "2026-05-11", "morning", "midday")).toBe(0.5)
+    expect(calculateDays("2026-05-11", "2026-05-11", "morning", "midday", [])).toBe(0.5)
   })
 
   it("both halves on same day = 0 (midday start + midday end)", () => {
-    expect(calculateDays("2026-05-11", "2026-05-11", "midday", "midday")).toBe(0)
+    expect(calculateDays("2026-05-11", "2026-05-11", "midday", "midday", [])).toBe(0)
   })
 
   it("half-day start across multiple days = 4.5 (Mon midday → Fri full)", () => {
     // Mon midday (0.5) + Tue + Wed + Thu + Fri = 0.5 + 4 = 4.5
-    expect(calculateDays("2026-05-11", "2026-05-15", "midday", "end_of_day")).toBe(4.5)
+    expect(calculateDays("2026-05-11", "2026-05-15", "midday", "end_of_day", [])).toBe(4.5)
   })
 
   it("half-day end across multiple days = 4.5 (Mon full → Fri midday)", () => {
     // Mon + Tue + Wed + Thu + Fri midday (0.5) = 4 + 0.5 = 4.5
-    expect(calculateDays("2026-05-11", "2026-05-15", "morning", "midday")).toBe(4.5)
+    expect(calculateDays("2026-05-11", "2026-05-15", "morning", "midday", [])).toBe(4.5)
   })
 
   it("skips holidays within the range", () => {
@@ -59,20 +59,20 @@ describe("calculateDays", () => {
   it("holiday on weekend is ignored (already excluded)", () => {
     // Same result whether Sat is in holiday list or not
     expect(calculateDays("2026-05-11", "2026-05-18", "morning", "end_of_day", ["2026-05-16"])).toBe(6)
-    expect(calculateDays("2026-05-11", "2026-05-18")).toBe(6)
+    expect(calculateDays("2026-05-11", "2026-05-18", "morning", "end_of_day", [])).toBe(6)
   })
 
   it("returns 0 when range is entirely weekend", () => {
     // 2026-05-16 Sat → 2026-05-17 Sun
-    expect(calculateDays("2026-05-16", "2026-05-17")).toBe(0)
+    expect(calculateDays("2026-05-16", "2026-05-17", "morning", "end_of_day", [])).toBe(0)
   })
 
   it("two weeks Mon–Fri = 10 days", () => {
-    expect(calculateDays("2026-05-11", "2026-05-22")).toBe(10)
+    expect(calculateDays("2026-05-11", "2026-05-22", "morning", "end_of_day", [])).toBe(10)
   })
 
   it("defaults to morning/end_of_day (full days) when periods omitted", () => {
-    expect(calculateDays("2026-05-11", "2026-05-11")).toBe(1)
+    expect(calculateDays("2026-05-11", "2026-05-11", "morning", "end_of_day", [])).toBe(1)
   })
 
   it("handles single holiday that falls on the only working day → 0", () => {
@@ -196,12 +196,12 @@ describe("timezone-safe date parsing regression", () => {
 
   it("calculateDays: Jan 1 (Thursday) counted as 1 working day", () => {
     // 2026-01-01 is a Thursday — must be counted regardless of timezone
-    expect(calculateDays("2026-01-01", "2026-01-01")).toBe(1)
+    expect(calculateDays("2026-01-01", "2026-01-01", "morning", "end_of_day", [])).toBe(1)
   })
 
   it("calculateDays: year-boundary week Mon Dec 28 → Fri Jan 1 = 5 days", () => {
     // 2026-12-28 Mon → 2027-01-01 Fri = 5 working days
-    expect(calculateDays("2026-12-28", "2027-01-01")).toBe(5)
+    expect(calculateDays("2026-12-28", "2027-01-01", "morning", "end_of_day", [])).toBe(5)
   })
 })
 

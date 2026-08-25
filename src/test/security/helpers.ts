@@ -1,5 +1,21 @@
-import { createClient } from "@supabase/supabase-js"
+import { createClient, type SupabaseClient } from "@supabase/supabase-js"
 import { GoTrueAdminApi } from "@supabase/auth-js"
+
+/**
+ * Database generic for the test clients.
+ *
+ * The project has no generated Supabase types, so an unparameterised client
+ * resolves table names and RPC arguments to `never`/`undefined` — which makes
+ * every `.rpc(...)` and `.select(...)` in these suites a type error even though
+ * they run correctly against the real database. These tests deliberately poke
+ * at arbitrary tables and RPCs (including ones they expect to be denied), so
+ * `any` is the honest generic here. Replace it with the generated `Database`
+ * type if `supabase gen types` is ever wired into the build.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type TestDatabase = any
+
+export type TestClient = SupabaseClient<TestDatabase>
 
 const TEST_URL = process.env.TEST_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? ""
 const TEST_ANON_KEY = process.env.TEST_SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_ANON_KEY ?? ""
@@ -9,7 +25,7 @@ if (!SERVICE_KEY) {
   console.warn("[security-tests] TEST_SUPABASE_SERVICE_ROLE_KEY not set — tests will be skipped")
 }
 
-export const serviceClient = createClient(TEST_URL, SERVICE_KEY || "dummy", {
+export const serviceClient = createClient<TestDatabase>(TEST_URL, SERVICE_KEY || "dummy", {
   auth: { persistSession: false },
 })
 
@@ -23,7 +39,7 @@ const goTrueAdmin = new GoTrueAdminApi({
 })
 
 // Anon client used to exchange magic-link token for a real JWT (enforces RLS)
-const anonClient = createClient(TEST_URL, TEST_ANON_KEY || "dummy", {
+const anonClient = createClient<TestDatabase>(TEST_URL, TEST_ANON_KEY || "dummy", {
   auth: { persistSession: false },
 })
 
@@ -32,7 +48,7 @@ export interface IsolatedWorkspace {
   workspaceId: string
   email: string
   role: "admin" | "user" | "owner"
-  userClient: ReturnType<typeof createClient>
+  userClient: TestClient
   accessToken: string
 }
 
@@ -103,7 +119,7 @@ export async function createIsolatedWorkspace(
   const accessToken = await getSessionForUser(email)
 
   // 5. Build user-scoped client (enforces RLS)
-  const userClient = createClient(TEST_URL, TEST_ANON_KEY, {
+  const userClient = createClient<TestDatabase>(TEST_URL, TEST_ANON_KEY, {
     auth: { persistSession: false },
     global: { headers: { Authorization: `Bearer ${accessToken}` } },
   })

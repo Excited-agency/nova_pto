@@ -7,6 +7,7 @@ import { BreadcrumbItem } from "@/components/ui/breadcrumb-item"
 import { EmployeeForm, type EmployeeFormData } from "@/components/employee-form"
 import { uploadImage, removeImage } from "@/lib/settings-service"
 import { useInviteEmployeeMutation } from "@/hooks/use-employees"
+import { formatLocalDate } from "@/lib/date-utils"
 import { useNavigationGuard } from "@/contexts/navigation-guard-context"
 import { addToast } from "@/lib/toast"
 
@@ -48,9 +49,9 @@ export function AddEmployeePage() {
         role: data.role,
         department_id: data.departmentId || null,
         location: data.location || undefined,
-        hire_date: data.startDate
-          ? data.startDate.toISOString().split("T")[0]
-          : undefined,
+        // formatLocalDate keeps the day the user actually picked; toISOString()
+        // converts to UTC first and shifts it back a day east of UTC.
+        hire_date: data.startDate ? formatLocalDate(data.startDate) : undefined,
         avatar_url: avatarUrl,
       })
     } catch (err) {

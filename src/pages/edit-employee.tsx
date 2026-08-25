@@ -8,7 +8,7 @@ import { EmployeeForm, type EmployeeFormData } from "@/components/employee-form"
 import { uploadImage } from "@/lib/settings-service"
 import { useEmployee, useUpdateEmployeeMutation } from "@/hooks/use-employees"
 import { addToast } from "@/lib/toast"
-import { parseDateLocal } from "@/lib/date-utils"
+import { parseDateLocal, formatLocalDate } from "@/lib/date-utils"
 import { useNavigationGuard } from "@/contexts/navigation-guard-context"
 
 export function EditEmployeePage() {
@@ -65,9 +65,9 @@ export function EditEmployeePage() {
         role: data.role,
         department_id: data.departmentId || null,
         location: data.location || undefined,
-        hire_date: data.startDate
-          ? data.startDate.toISOString().split("T")[0]
-          : undefined,
+        // formatLocalDate keeps the day the user actually picked; toISOString()
+        // converts to UTC first and shifts it back a day east of UTC.
+        hire_date: data.startDate ? formatLocalDate(data.startDate) : undefined,
         ...(avatarUrl !== undefined && { avatar_url: avatarUrl }),
       },
     })

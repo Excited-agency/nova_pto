@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { processRows, rowHasErrors, rowHasWarnings } from "@/lib/csv-validation"
+import { processRows, rowHasErrors } from "@/lib/csv-validation"
 import { mapHeaders } from "@/lib/csv-header-mapping"
 
 function makeMapping(headers: string[]) {
@@ -103,7 +103,7 @@ describe("processRows — name validation", () => {
       departmentNameToId: deptMap,
     })
     expect(rowHasErrors(0, validations)).toBe(false)
-    expect(rowHasWarnings(0, validations)).toBe(true)
+    expect(validations.get(0)!.every(v => v.severity === "warning")).toBe(true)
     expect(validations.get(0)!.some(v => v.message === "Name is missing")).toBe(true)
   })
 
@@ -139,7 +139,7 @@ describe("processRows — department resolution", () => {
       departmentNameToId: deptMap,
     })
     expect(rowHasErrors(0, validations)).toBe(false)
-    expect(rowHasWarnings(0, validations)).toBe(true)
+    expect(validations.get(0)!.every(v => v.severity === "warning")).toBe(true)
     expect(validations.get(0)!.some(v => v.message === 'Department "Sales" not found')).toBe(true)
   })
 
@@ -274,25 +274,25 @@ describe("processRows — Full Name column", () => {
   })
 })
 
-describe("rowHasErrors / rowHasWarnings", () => {
-  it("rowHasErrors returns false for unknown index", () => {
+describe("rowHasErrors", () => {
+  it("returns false for unknown index", () => {
     expect(rowHasErrors(99, new Map())).toBe(false)
   })
 
-  it("rowHasWarnings returns false when also has errors", () => {
+  it("returns true when the row mixes an error with a warning", () => {
     const validations = new Map([
       [0, [
         { rowIndex: 0, field: "email", message: "Invalid", severity: "error" as const },
         { rowIndex: 0, field: "name", message: "Missing name", severity: "warning" as const },
       ]],
     ])
-    expect(rowHasWarnings(0, validations)).toBe(false)
+    expect(rowHasErrors(0, validations)).toBe(true)
   })
 
-  it("rowHasWarnings returns true for warning-only row", () => {
+  it("returns false for a warning-only row", () => {
     const validations = new Map([
       [0, [{ rowIndex: 0, field: "name", message: "Missing name", severity: "warning" as const }]],
     ])
-    expect(rowHasWarnings(0, validations)).toBe(true)
+    expect(rowHasErrors(0, validations)).toBe(false)
   })
 })

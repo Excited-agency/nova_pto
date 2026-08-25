@@ -29,7 +29,8 @@ interface HolidayModalProps {
 
 const holidaySchema = z.object({
   name: z.string().min(1, "Holiday name is required"),
-  date: z.date({ required_error: "Date is required" }),
+  // Zod v4 renamed required_error -> error (the old key was silently ignored).
+  date: z.date({ error: "Date is required" }),
 })
 
 type HolidayFormData = z.infer<typeof holidaySchema>

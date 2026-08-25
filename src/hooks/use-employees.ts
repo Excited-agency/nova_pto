@@ -13,7 +13,13 @@ import {
   type UpdateEmployeeData,
   type InviteEmployeeData,
 } from "@/lib/employee-service"
-import { employeeKeys, activeEmployeeKeys, employeeBalanceKeys, balanceAdjustmentLogKeys } from "@/lib/query-keys"
+import {
+  employeeKeys,
+  activeEmployeeKeys,
+  employeeBalanceKeys,
+  balanceAdjustmentLogKeys,
+  timeOffRequestKeys,
+} from "@/lib/query-keys"
 import { EMPLOYEES_PAGE_SIZE } from "@/lib/constants"
 import type { EmployeeStatus } from "@/types/employee"
 
@@ -65,6 +71,11 @@ export function useEmployeeStatusMutation() {
         queryClient.invalidateQueries({ queryKey: employeeKeys.all(workspace.id) })
         // Also bust the active-employees combobox cache so modals reflect the change immediately
         queryClient.invalidateQueries({ queryKey: activeEmployeeKeys.list(workspace.id) })
+        // Setting status to "deleted" fires the auto_reject_pending_on_employee_delete
+        // trigger, which rejects that employee's pending requests in the database.
+        // Without this the requests table and the sidebar's pending badge keep
+        // showing requests the DB has already rejected.
+        queryClient.invalidateQueries({ queryKey: timeOffRequestKeys.all(workspace.id) })
       }
     },
   })
@@ -82,6 +93,9 @@ export function useDeleteEmployeeMutation() {
         queryClient.invalidateQueries({ queryKey: activeEmployeeKeys.list(workspace.id) })
         queryClient.invalidateQueries({ queryKey: employeeBalanceKeys.allForEmployee(workspace.id, employeeId) })
         queryClient.invalidateQueries({ queryKey: balanceAdjustmentLogKeys.allForEmployee(workspace.id, employeeId) })
+        // Soft-delete sets status = "deleted", which auto-rejects this
+        // employee's pending requests via DB trigger.
+        queryClient.invalidateQueries({ queryKey: timeOffRequestKeys.all(workspace.id) })
       }
     },
   })
@@ -99,6 +113,8 @@ export function usePurgeEmployeeMutation() {
         queryClient.invalidateQueries({ queryKey: activeEmployeeKeys.list(workspace.id) })
         queryClient.invalidateQueries({ queryKey: employeeBalanceKeys.allForEmployee(workspace.id, employeeId) })
         queryClient.invalidateQueries({ queryKey: balanceAdjustmentLogKeys.allForEmployee(workspace.id, employeeId) })
+        // Purging deletes the profile row, cascading to its time_off_requests.
+        queryClient.invalidateQueries({ queryKey: timeOffRequestKeys.all(workspace.id) })
       }
     },
   })
@@ -115,6 +131,9 @@ export function useBulkEmployeeStatusMutation() {
       if (workspace) {
         queryClient.invalidateQueries({ queryKey: employeeKeys.all(workspace.id) })
         queryClient.invalidateQueries({ queryKey: activeEmployeeKeys.list(workspace.id) })
+        // Bulk delete sets status = "deleted", which auto-rejects those
+        // employees' pending requests via DB trigger.
+        queryClient.invalidateQueries({ queryKey: timeOffRequestKeys.all(workspace.id) })
       }
     },
   })

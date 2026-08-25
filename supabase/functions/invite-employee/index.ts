@@ -5,6 +5,47 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 }
 
+/**
+ * Finds an existing auth user by exact email via the GoTrue admin API.
+ *
+ * Uses the REST endpoint rather than `auth.admin.listUsers()` because the JS
+ * client's PageParams has no email filter, and paging the whole user table
+ * would be both slow and unreliable. Returns null when there is no match, or
+ * when the lookup itself fails — callers treat both as "cannot recover".
+ */
+async function findAuthUserByEmail(
+  supabaseUrl: string,
+  serviceKey: string,
+  email: string
+): Promise<{ id: string } | null> {
+  try {
+    const res = await fetch(
+      `${supabaseUrl}/auth/v1/admin/users?filter=${encodeURIComponent(email)}&per_page=50`,
+      {
+        headers: {
+          Authorization: `Bearer ${serviceKey}`,
+          apikey: serviceKey,
+        },
+      }
+    )
+
+    if (!res.ok) {
+      console.error("[invite-employee] admin user lookup failed:", res.status, await res.text())
+      return null
+    }
+
+    const body = (await res.json()) as { users?: { id: string; email?: string }[] }
+    // `filter` is a substring match, so still require an exact, case-insensitive
+    // address match before reusing an account.
+    const target = email.toLowerCase()
+    const match = body.users?.find((u) => u.email?.toLowerCase() === target)
+    return match ? { id: match.id } : null
+  } catch (err) {
+    console.error("[invite-employee] admin user lookup threw:", err)
+    return null
+  }
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -143,6 +184,9 @@ Deno.serve(async (req) => {
 
     // Create auth user directly (no invitation email — avoids rate limits)
     let newUserId: string
+    // Tracks whether THIS request created the auth user. Only then may we
+    // delete it on rollback — a reused pre-existing user must be left alone.
+    let createdAuthUser = false
 
     const { data: createData, error: createError } =
       await adminClient.auth.admin.createUser({
@@ -151,20 +195,23 @@ Deno.serve(async (req) => {
       })
 
     if (createError) {
-      // Auth user may already exist (e.g., previously deleted from another workspace)
-      // Look up by email using the admin API
-      const { data: listData, error: listError } =
-        await adminClient.auth.admin.listUsers({
-          page: 1,
-          perPage: 1,
-          filter: email,
-        })
-
-      const existingUser = listData?.users?.find(
-        (u: { email?: string }) => u.email === email
+      // The auth user may already exist — e.g. this email was previously
+      // deleted from another workspace, or an earlier invite failed midway.
+      // Reuse that account instead of dead-ending the invite.
+      //
+      // This used to call listUsers({ page: 1, perPage: 1, filter: email }).
+      // `filter` is not part of the JS admin API's PageParams, so it was
+      // dropped: the call returned the FIRST user in the entire project, the
+      // subsequent email match almost always failed, and the invite died with
+      // a confusing "email already registered" instead of recovering. The
+      // GoTrue admin endpoint does support `filter`, so query it directly.
+      const existingUser = await findAuthUserByEmail(
+        supabaseUrl,
+        supabaseServiceKey,
+        email
       )
 
-      if (listError || !existingUser) {
+      if (!existingUser) {
         return new Response(
           JSON.stringify({ error: createError.message }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -174,6 +221,7 @@ Deno.serve(async (req) => {
       newUserId = existingUser.id
     } else {
       newUserId = createData.user.id
+      createdAuthUser = true
     }
 
     // Insert profile row
@@ -196,6 +244,30 @@ Deno.serve(async (req) => {
       .single()
 
     if (insertError) {
+      // Compensating rollback: without this, a failed profile insert leaves an
+      // orphaned auth user. The email then looks "already in use" on retry
+      // (the createUser call above fails) while no profile exists anywhere,
+      // so the same employee can never be invited again without manual repair.
+      if (createdAuthUser) {
+        const { error: rollbackError } = await adminClient.auth.admin.deleteUser(newUserId)
+        if (rollbackError) {
+          console.error(
+            "[invite-employee] Profile insert failed AND auth rollback failed. " +
+            `Orphaned auth user ${newUserId} (${email}) must be deleted manually.`,
+            rollbackError
+          )
+          return new Response(
+            JSON.stringify({
+              error:
+                "Couldn't create the employee profile, and cleaning up the new " +
+                "login afterwards also failed. Contact support before retrying " +
+                "this email.",
+            }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          )
+        }
+      }
+
       return new Response(
         JSON.stringify({ error: insertError.message }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

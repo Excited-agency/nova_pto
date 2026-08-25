@@ -8,6 +8,12 @@ export interface TimeOffRequest {
   profile_id: string
   workspace_id: string
   category_id?: string | null
+  /**
+   * Snapshot of the category name, written server-side and kept in sync on
+   * rename. Outlives the category itself, so a deleted category still shows
+   * up correctly in reports instead of collapsing to "Other".
+   */
+  category_name?: string | null
   employee_name: string
   employee_email: string
   employee_avatar_url?: string
@@ -37,8 +43,15 @@ export interface CreateTimeOffRecordParams {
   comment?: string | null
 }
 
+/**
+ * What the client is allowed to say about a new request.
+ *
+ * total_days, status, request_type and the denormalised employee fields are
+ * deliberately absent: the submit_time_off_request RPC derives them, so the
+ * browser cannot decide how many days a request costs. profile_id is kept only
+ * to address the Slack notification — the row itself uses auth.uid().
+ */
 export interface SubmitTimeOffRequestParams {
-  workspace_id: string
   profile_id: string
   category_id: string
   start_date: string
@@ -46,11 +59,6 @@ export interface SubmitTimeOffRequestParams {
   start_period: "morning" | "midday"
   end_period: "midday" | "end_of_day"
   comment?: string | null
-  employee_name: string
-  employee_email: string
-  employee_avatar_url?: string | null
-  total_days: number
-  request_type: string
 }
 
 export interface ComboboxEmployee {

@@ -49,43 +49,6 @@ function formatLocalDate(date: Date): string {
   return `${y}-${m}-${d}`
 }
 
-function calculateDays(
-  startDate: string,
-  endDate: string,
-  startPeriod: "morning" | "midday" = "morning",
-  endPeriod: "midday" | "end_of_day" = "end_of_day",
-  holidays: string[] = []
-): number {
-  const startPortion = startPeriod === "morning" ? 1.0 : 0.5
-  const endPortion = endPeriod === "end_of_day" ? 1.0 : 0.5
-  const holidaySet = new Set(holidays)
-
-  const cur = new Date(startDate + "T00:00:00")
-  const end = new Date(endDate + "T00:00:00")
-  let total = 0
-
-  while (cur <= end) {
-    const dow = cur.getDay()
-    const iso = formatLocalDate(cur)
-    const isFirst = iso === startDate
-    const isLast = iso === endDate
-
-    if (dow !== 0 && dow !== 6 && !holidaySet.has(iso)) {
-      if (isFirst && isLast) {
-        total += startPortion + endPortion - 1.0
-      } else if (isFirst) {
-        total += startPortion
-      } else if (isLast) {
-        total += endPortion
-      } else {
-        total += 1.0
-      }
-    }
-    cur.setDate(cur.getDate() + 1)
-  }
-  return total
-}
-
 function formatDate(dateStr: string): string {
   const [y, m, d] = dateStr.split("-").map(Number)
   return new Intl.DateTimeFormat("en-US", {
@@ -779,7 +742,10 @@ async function lookupSlackUser(
     workspace_id: profile.workspace_id,
     slack_installation_id: installation.id,
     bot_token: installation.bot_token,
-    is_admin: profile.role === "admin",
+    // Owners are admins too: is_workspace_admin() resolves to
+    // role IN ('admin','owner'), and the bot RPCs accept both. Comparing
+    // against "admin" alone silently dropped every owner action here.
+    is_admin: profile.role === "admin" || profile.role === "owner",
     first_name: profile.first_name,
     last_name: profile.last_name,
     email: profile.email,
@@ -838,7 +804,10 @@ async function tryLazyLink(
     workspace_id: profile.workspace_id,
     slack_installation_id: installation.id,
     bot_token: installation.bot_token,
-    is_admin: profile.role === "admin",
+    // Owners are admins too: is_workspace_admin() resolves to
+    // role IN ('admin','owner'), and the bot RPCs accept both. Comparing
+    // against "admin" alone silently dropped every owner action here.
+    is_admin: profile.role === "admin" || profile.role === "owner",
     first_name: profile.first_name,
     last_name: profile.last_name,
     email: profile.email,
@@ -1324,55 +1293,34 @@ async function handleSubmitTimeOff(
     return { response_action: "errors", errors: { category_block: "This category has been deactivated. Please select a different one." } }
   }
 
-  // Fetch holidays for business day calculation
-  const { data: holidays } = await adminClient
-    .from("holidays")
-    .select("date")
-    .eq("workspace_id", user.workspace_id)
+  // Create the request through the shared RPC. It counts the days (weekends
+  // and workspace holidays excluded), forces status='pending', and derives
+  // request_type and the denormalised employee fields -- the same code the web
+  // app goes through. This replaced a local copy of the day maths plus its own
+  // substring-based request_type mapping, which classified a category like
+  // "Extra vacation" differently from every other code path.
+  const { data: created, error: submitError } = await adminClient.rpc(
+    "submit_time_off_request_bot",
+    {
+      p_profile_id: user.profile_id,
+      p_category_id: categoryId,
+      p_start_date: startDate,
+      p_end_date: endDate,
+      p_start_period: startPeriod,
+      p_end_period: endPeriod,
+      p_comment: comment ?? null,
+    }
+  )
 
-  const holidayDates = (holidays ?? []).map((h) => h.date)
-  const totalDays = calculateDays(startDate!, endDate!, startPeriod as "morning" | "midday", endPeriod as "midday" | "end_of_day", holidayDates)
-
-  if (totalDays <= 0) {
-    return { response_action: "errors", errors: { start_date_block: "Selected dates result in 0 business days" } }
+  if (submitError) {
+    console.error("[slack-events] Failed to submit request:", submitError)
+    const message = /no working days/i.test(submitError.message)
+      ? "Those dates contain no working days (weekends and holidays don't count)."
+      : "Failed to submit request. Please try again."
+    return { response_action: "errors", errors: { start_date_block: message } }
   }
 
-  // Map category name to request_type
-  const requestType = (() => {
-    const name = category.name.toLowerCase()
-    if (name.includes("vacation")) return "vacation"
-    if (name.includes("sick")) return "sick_leave"
-    if (name.includes("personal")) return "personal"
-    if (name.includes("bereavement")) return "bereavement"
-    return "other"
-  })()
-
-  const employeeName = getDisplayName(user.first_name, user.last_name)
-
-  // Insert request and capture the returned id
-  const { data: newRequest, error: insertError } = await adminClient.from("time_off_requests").insert({
-    profile_id: user.profile_id,
-    workspace_id: user.workspace_id,
-    category_id: categoryId,
-    start_date: startDate,
-    end_date: endDate,
-    start_period: startPeriod,
-    end_period: endPeriod,
-    total_days: totalDays,
-    employee_name: employeeName,
-    employee_email: user.email,
-    employee_avatar_url: user.avatar_url,
-    status: "pending",
-    comment,
-    request_type: requestType,
-  }).select().single()
-
-  if (insertError) {
-    console.error("[slack-events] Failed to insert request:", insertError)
-    return { response_action: "errors", errors: { category_block: "Failed to submit request. Please try again." } }
-  }
-
-  const newRequestId = newRequest?.id as string
+  const newRequestId = (created as { id: string }).id
 
   // Fire-and-forget: notify admins via slack-notify
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!
@@ -1453,7 +1401,10 @@ async function handleApproveRequest(
   channelId: string
 ) {
   const user = await lookupSlackUser(adminClient, slackUserId, slackTeamId)
-  if (!user || !user.is_admin) {
+  // Status matters: soft-deleting an employee keeps their profile row (role
+  // intact) and their slack_user_mappings row, so a deactivated admin would
+  // otherwise keep working Slack buttons. The bot RPC also enforces this.
+  if (!user || !user.is_admin || user.status !== "active") {
     console.warn("[slack-events] Non-admin attempted approval:", slackUserId)
     return
   }
@@ -1626,7 +1577,7 @@ async function handleRejectButton(
   channelId: string
 ) {
   const user = await lookupSlackUser(adminClient, slackUserId, slackTeamId)
-  if (!user || !user.is_admin) return
+  if (!user || !user.is_admin || user.status !== "active") return
 
   // Fetch request details for the modal
   const { data: request } = await adminClient
@@ -1700,7 +1651,7 @@ async function handleRejectSubmission(
   }
 
   const user = await lookupSlackUser(adminClient, slackUserId, slackTeamId)
-  if (!user || !user.is_admin) {
+  if (!user || !user.is_admin || user.status !== "active") {
     return { response_action: "errors", errors: { reason_block: "Permission denied" } }
   }
 

@@ -1,88 +1,142 @@
-# Slack Integration — Calamari-Grade UX Overhaul
+# Механізм нарахувань + збереження історії
 
-## Already Implemented (v2)
-- [x] Home Tab with all 6 sections (greeting, balances, out today, pending w/ withdraw, decisions, admin panel)
-- [x] buildApprovalMessage with balance context + overlap info
-- [x] buildApprovedMessage / buildRejectedMessage for in-place updates
-- [x] handleWithdrawRequest (home + DM)
-- [x] refreshHomeTab utility
-- [x] Auto-refresh after Slack-originated approve/reject/withdraw/submit
-- [x] Inline admin approvals from Home Tab
-- [x] Employee submission DM with Withdraw button (Slack-originated)
-- [x] Employee approval/rejection DMs with balance info (Slack-originated)
+## Контекст
 
-## Overhaul Work (completed)
-- [x] **BUG FIX**: `formatDate(req.createdAt)` — extract date from timestamp with `.substring(0, 10)`
-- [x] **BUG FIX**: `handleApproveRequest` chat.update guard for Home Tab approvals (skip when no messageTs/channelId)
-- [x] **FEATURE**: Internal refresh endpoint in slack-events (`internal_refresh_home_tab`, auth via service role key)
-- [x] **FEATURE**: slack-notify sends employee DM with Withdraw on web submission (skip_employee_dm flag)
-- [x] **FEATURE**: slack-notify triggers Home Tab refresh after all notification actions (submitted/approved/rejected)
-- [x] **FEATURE**: Wire `submitTimeOffRequest` to call slack-notify (web → Slack admin notifications)
-- [x] **FEATURE**: Pass skip_employee_dm flag from slack-events to avoid duplicate DMs
-- [x] Build passes
+Аудит виявив, що налаштування нарахувань (частота, перенесення залишку,
+випробувальний період, вислуга) зберігаються й показуються, але **ніде не
+застосовуються** — немає жодного планового процесу. Баланс видається один раз
+і далі тільки зменшується. Плюс видалення категорії каскадом стирає журнал
+коригувань, а зміна «днів на рік» нічого не робить із наявними балансами.
 
-## Multi-Admin DM Update Fix
-- [x] New migration `slack_dm_messages` table — stores per-admin DM refs (channel_id + message_ts)
-- [x] slack-notify: store all admin DM refs on send (upsert into slack_dm_messages)
-- [x] slack-notify: update all admin DMs on web dashboard approve/reject
-- [x] slack-events: add `updateAllAdminDMs` helper with exclude support
-- [x] slack-events: wire into `handleApproveRequest` (updates other admins' DMs)
-- [x] slack-events: wire into `handleRejectSubmission` (updates other admins' DMs)
-- [x] slack-events: wire into `handleWithdrawRequest` (updates all admin DMs)
+Рішення користувача:
+1. Реалізувати **все**, що обіцяє форма (4 методи × усі частоти).
+2. Перенесення при вимкненому ліміті — **переносити всі** невикористані дні.
+3. Випробувальний період — **баланс 0**, повна норма нараховується після періоду.
+4. Наявні баланси — **перерахувати від дати прийому**.
 
-## Deployment
-- [ ] Apply migration: `supabase db push`
-- [ ] Deploy slack-events: `supabase functions deploy slack-events`
-- [ ] Deploy slack-notify: `supabase functions deploy slack-notify`
+Накладання заявок (пункт 4 аудиту) — відкладено, обговорюємо окремо.
 
 ---
 
-# Danger Zone + Single Workspace Constraint
+## Семантика (узгоджено з формою категорії)
 
-## Database
-- [x] Migration: partial unique index `profiles_email_active_unique` (one active email globally)
-- [x] Migration: RLS DELETE policy on workspaces (owner-only)
+| Метод | Коли | Ефект |
+|---|---|---|
+| `fixed` + `yearly` | 1 січня щороку | **скидання**: `amount_value` + перенесене |
+| `fixed` + `hire_anniversary` | річниця прийому | **скидання**: `amount_value` + перенесене |
+| `periodic` + `weekly`/`bi_weekly` | у вибраний день тижня | **додавання** `amount_value` |
+| `periodic` + `monthly`/`quarterly`/`yearly` | перший/останній день періоду або день річниці | **додавання** `amount_value` |
+| `anniversary` | кожні `anniversary_years` років служби | **додавання** `amount_value` |
+| `unlimited` | — | балансу немає, нічого не нараховується |
 
-## Edge Functions
-- [x] New `delete-workspace` Edge Function (owner auth, confirmation, deletes auth users + profiles + workspace)
-- [x] Modified `invite-employee`: global email check (409 if active elsewhere)
-- [x] Modified `invite-employee`: handle re-invite of existing auth users (reuse ID)
+**Перенесення (тільки для `fixed`, бо лише там є скидання):**
+- `carryover_limit_enabled = false` → переноситься весь залишок
+- `= true` → переноситься `LEAST(залишок, carryover_max_days)`, надлишок згорає
+- `carryover_expiration_value/unit` → перенесені дні згорають через цей строк
+- для `periodic` ліміт застосовується як **стеля балансу 1 січня**
 
-## Service Layer
-- [x] `deleteWorkspace()` in settings-service.ts
+**Випробувальний період:** нарахувань немає до `hire_date + waiting_period`.
+Перше нарахування — повна норма на першу планову дату після цього моменту.
+Категорія недоступна у формі заявки й відхиляється сервером до цієї дати.
 
-## UI
-- [x] Danger Zone section on Settings page (owner-only visibility)
-- [x] AlertDialog confirmation modal (type workspace name to confirm)
-- [x] Post-delete: clear cache, unregister guard, sign out, redirect to login
-
-## Deployment
-- [ ] Apply migration: `supabase db push`
-- [ ] Deploy delete-workspace: `supabase functions deploy delete-workspace`
-- [ ] Deploy invite-employee: `supabase functions deploy invite-employee`
+**Без `hire_date`** (6 профілів у проді) → береться `profiles.created_at`.
 
 ---
 
-# Slack Integration — Calamari-Standard UX Audit Fixes
+## Етап 1 — Історія переживає видалення категорії
 
-## P0 — Data Integrity
-- [x] Add `request_id` to slack-events notification payload (slack-events:1352)
-- [x] Create web-facing `reject_time_off_request` RPC with row locking (migration)
-- [x] Route web rejections through the new RPC (time-off-request-service.ts:92-99)
-- [x] Add employee-status guard to both approval RPCs (migration)
+- [x] Міграція `20260826100000_preserve_category_history.sql`
+  - [x] `time_off_requests.category_name text` — знімок назви
+  - [x] `balance_adjustment_log.category_name text` — те саме
+  - [x] заповнити наявні рядки з `time_off_categories`
+  - [x] `balance_adjustment_log.category_id`: `DROP NOT NULL` + FK → `ON DELETE SET NULL`
+  - [x] тригер: перейменування категорії синхронізує знімок (поки категорія жива)
+  - [x] RPC, що пишуть заявки/журнал, заповнюють `category_name`
+- [x] `getCategoryDisplay` віддає перевагу знімку
+- [x] звіт/експорт використовує знімок
+- [x] діалог видалення категорії пояснює, що зникає, а що залишається
+- [x] тести
 
-## P1 — UX Polish
-- [x] Add empty states: Admin Panel, Pending Requests, Recent Decisions (slack-events buildHomeTabBlocks)
-- [x] Fix orphan dividers — always render sections so dividers aren't stranded
-- [x] Move confirmation DM out of synchronous `view_submission` path
+## Етап 2 — Механізм нарахувань
 
-## P2 — Polish
-- [x] Add "Last updated" timestamp to Home Tab footer
-- [x] Show truncation note when balances exceed 10 categories
-- [x] Include half-day period labels in Home Tab pending requests
-- [x] Filter withdrawn requests from Recent Decisions
+- [x] Міграція `20260826110000_accrual_engine.sql`
+  - [x] `employee_balances`: `last_accrual_on`, `carryover_days`, `carryover_expires_on`
+  - [x] розширити CHECK `reason`: `accrual`, `carryover_capped`, `carryover_expired`, `recalculated`
+  - [x] `accrual_eligible_from()` — дата, з якої співробітник має право
+  - [x] `accrual_due_dates()` — усі планові дати в інтервалі
+  - [x] `apply_accruals(as_of)` — щоденний прохід (ідемпотентний через `last_accrual_on`)
+  - [x] `recalculate_employee_balance()` — реплей хронології: нарахування + використані заявки + згорання
+  - [x] pg_cron: щодня 02:00 UTC
+- [x] заборона заявок під час випробувального періоду (submit + create_record)
+- [x] форма заявки: категорія недоступна + пояснення «доступно з …»
+- [x] типи TS + журнал показує нові причини
+- [x] тести
 
-## Deployment
-- [x] Apply migration: `supabase db push`
-- [x] Deploy slack-events: `supabase functions deploy slack-events`
-- [x] Deploy slack-notify: `supabase functions deploy slack-notify`
+## Етап 3 — Зміна «днів на рік» більше не вводить в оману
+
+- [x] у формі категорії — пояснення, що нове число діє з наступного нарахування
+- [x] наявні баланси не переписуються молча
+- [x] тести
+
+---
+
+## Перевірка
+
+```bash
+npm run typecheck && npm run lint && npm run build
+npm test
+supabase db reset && npm run test:db      # міграції з нуля
+```
+
+Деплой — окремо, з дозволу. pg_cron треба увімкнути на проді
+(розширення доступне, версія 1.6.4, ще не встановлене).
+
+---
+
+## Результат
+
+**Зроблено й перевірено локально.** 3 нові міграції, 309 тестів проходять
+(було 286 — додано 23), типи/лінт/білд по нулях, міграції застосовуються з
+нуля, pg_cron-завдання зареєстровано.
+
+### Що емпірично доведено
+
+| Перевірка | До виправлення | Після |
+|---|---|---|
+| Журнал коригувань після видалення категорії | **0 рядків** | збережено, з назвою |
+| Назва категорії в заявці після видалення | «Other» | «Summer Holiday» |
+| Баланс під час випробувального періоду | 20 днів | 0, заявку відхилено з причиною |
+| Тести з вимкненим механізмом нарахувань | — | **8 із 13 падають** |
+
+Кожен тест перевірено на те, що він падає без виправлення — інакше він нічого
+не вартий.
+
+### Матриця політик нарахування
+
+Окремо перевірено, що **будь-яка** категорія, створена вручну, працює за своїми
+налаштуваннями: 28 комбінацій, які дозволяє форма (4 методи × усі частоти ×
+дні нарахування × випробувальний період × ліміт перенесення), кожна створена
+через клієнт адміна — тим самим шляхом, що й у застосунку.
+
+Очікуваний баланс рахується в TypeScript незалежно від SQL, а форма розкладу
+(день тижня, крок у днях/місяцях, останній день місяця, крок річниці)
+виводиться з налаштувань, а не з відповіді функції. Злам розрахунку дати дає
+11 падінь із 30.
+
+Також перевірено: щоденний прохід підхоплює нові категорії, а вмикання
+раніше вимкненої категорії одразу сіє й нараховує баланси.
+
+### ✅ Рішення щодо бекфілу
+
+Перерахунок від дати прийому + «переносити всі» дає на живих даних:
+
+| | Зараз | Після перерахунку |
+|---|---|---|
+| Сума балансів (fixed-категорії) | 932 дні | **3320 днів** |
+| Найбільший баланс однієї людини | — | **160 днів** |
+
+Причина: 25 із 33 працівників мають дату старту понад рік тому (найраніша —
+2019-05-19), тобто до 8 щорічних нарахувань, які ніколи не витрачались.
+Юридично це коректно (невикористана відпустка не зникає). Користувач
+підтвердив: **перерахунок від дати прийому**, як і домовлялись. Змін у код не
+потрібно — міграція вже це робить.

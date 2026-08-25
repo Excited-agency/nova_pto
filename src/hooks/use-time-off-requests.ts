@@ -154,7 +154,7 @@ export function useWithdrawRequestMutation() {
   const { profile, workspace } = useAuth()
 
   return useMutation({
-    mutationFn: (requestId: string) => withdrawTimeOffRequest(requestId, workspace!.id),
+    mutationFn: (requestId: string) => withdrawTimeOffRequest(requestId),
     onSuccess: () => {
       if (profile && workspace) {
         queryClient.invalidateQueries({ queryKey: myRequestKeys.all(profile.id) })

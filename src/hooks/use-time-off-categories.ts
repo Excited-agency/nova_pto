@@ -8,6 +8,7 @@ import {
   updateCategoryActive,
   deleteCategory,
   updateCategorySortOrder,
+  fetchCategoryAvailability,
   type CreateCategoryData,
   type UpdateCategoryData,
 } from "@/lib/time-off-category-service"
@@ -23,6 +24,23 @@ export function useTimeOffCategories() {
     enabled: !!workspace,
     staleTime: 5 * 60_000,
     placeholderData: keepPreviousData,
+  })
+}
+
+/**
+ * When each category becomes usable for one employee.
+ *
+ * Only changes when the hire date or a category's waiting period changes, so
+ * it is cached for as long as the category list itself.
+ */
+export function useCategoryAvailability(employeeId?: string) {
+  const { workspace } = useAuth()
+
+  return useQuery({
+    queryKey: timeOffCategoryKeys.availability(workspace?.id ?? "", employeeId ?? ""),
+    queryFn: () => fetchCategoryAvailability(employeeId!),
+    enabled: !!workspace && !!employeeId,
+    staleTime: 5 * 60_000,
   })
 }
 

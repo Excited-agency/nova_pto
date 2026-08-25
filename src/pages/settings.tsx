@@ -25,6 +25,7 @@ import {
   removeImage,
 } from "@/lib/settings-service"
 import { departmentKeys, employeeKeys } from "@/lib/query-keys"
+import { parseDateLocal, formatLocalDate } from "@/lib/date-utils"
 import { addToast } from "@/lib/toast"
 import type { Department } from "@/types/department"
 import { WorkspaceSection } from "@/components/settings/workspace-section"
@@ -97,7 +98,10 @@ export function SettingsPage() {
     const aUrl = profile.avatar_url || null
     const deptId = profile.department_id ?? ""
     const loc = profile.location ?? ""
-    const hDate = profile.hire_date ? new Date(profile.hire_date) : undefined
+    // parseDateLocal, not new Date(str): a bare "YYYY-MM-DD" parses as UTC
+    // midnight, which the date picker then reads with local getters and shows
+    // as the previous day for anyone east of UTC.
+    const hDate = profile.hire_date ? parseDateLocal(profile.hire_date) : undefined
 
     setWorkspaceName(wName)
     setFirstName(fName)
@@ -321,7 +325,9 @@ export function SettingsPage() {
         avatar_url: newAvatarUrl,
         department_id: departmentId || null,
         location: location || undefined,
-        hire_date: hireDate ? hireDate.toISOString().split('T')[0] : undefined,
+        // formatLocalDate, not toISOString(): the picker builds a local-midnight
+        // Date, and toISOString() would shift it back a day east of UTC.
+        hire_date: hireDate ? formatLocalDate(hireDate) : undefined,
       })
 
       // 5. Handle departments

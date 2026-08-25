@@ -51,7 +51,7 @@ export function CategoryForm({
     control,
     handleSubmit,
     setValue,
-    formState: { isValid, isDirty, isSubmitting },
+    formState: { isValid, isDirty, isSubmitting, dirtyFields },
   } = useForm<CategoryFormValues>({
     resolver: zodResolver(categoryFormSchema),
     defaultValues: initialData,
@@ -255,6 +255,20 @@ export function CategoryForm({
             amountValue={amountValue}
             anniversaryYears={anniversaryYears}
           />
+
+          {/*
+            Editing the amount used to look like it changed everyone's balance
+            and in fact changed nothing at all: the number was only ever read
+            when a balance row was first created. It now drives every future
+            grant, which is the sane behaviour but still not retroactive — so
+            say so, rather than let the admin assume either extreme.
+          */}
+          {mode === "edit" && dirtyFields.amount_value && (
+            <p className="text-sm leading-5 tracking-tight text-muted-foreground">
+              Applies from the next accrual. Balances employees hold today stay
+              as they are — use Adjust balance on an employee to change those.
+            </p>
+          )}
 
         {/* New hire rule */}
         <Controller

@@ -30,7 +30,7 @@ function LocationCombobox({
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState(value)
   const inputRef = useRef<HTMLInputElement>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // Clean up debounce timer on unmount
   useEffect(() => {

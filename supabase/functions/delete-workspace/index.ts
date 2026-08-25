@@ -84,94 +84,56 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Fetch all profile IDs in the workspace
-    const { data: profiles, error: profilesError } = await adminClient
-      .from("profiles")
-      .select("id")
-      .eq("workspace_id", workspace_id)
+    // Step 1: Delete every row of workspace data in ONE transaction.
+    // The RPC deletes the workspaces row and lets the ON DELETE CASCADE chain
+    // remove profiles, requests, balances, categories, holidays and all Slack
+    // tables together, so a mid-way failure can no longer leave the workspace
+    // half-deleted. It re-verifies ownership server-side and returns the
+    // profile IDs it removed, which we need for auth cleanup below.
+    const { data: cascadeResult, error: cascadeError } = await adminClient.rpc(
+      "delete_workspace_cascade",
+      { p_workspace_id: workspace_id, p_owner_id: caller.id }
+    )
 
-    if (profilesError) {
-      console.error("[delete-workspace] Failed to fetch profiles:", profilesError)
+    if (cascadeError) {
+      console.error("[delete-workspace] Cascade delete failed:", cascadeError)
       return new Response(
-        JSON.stringify({ error: `Failed to fetch workspace members: ${profilesError.message}` }),
+        JSON.stringify({ error: `Failed to delete workspace: ${cascadeError.message}` }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
 
-    const profileIds = (profiles ?? []).map((p: { id: string }) => p.id)
-    console.log(`[delete-workspace] Found ${profileIds.length} profiles to delete`)
-
-    // Step 1: Delete all auth users (frees emails in Supabase Auth)
-    const authDeletions = await Promise.allSettled(
-      profileIds.map((id: string) => adminClient.auth.admin.deleteUser(id))
+    const profileIds: string[] =
+      (cascadeResult as { profile_ids?: string[] } | null)?.profile_ids ?? []
+    console.log(
+      `[delete-workspace] Deleted workspace ${workspace_id} and ${profileIds.length} profiles`
     )
 
-    const failedAuth = authDeletions.filter((r) => r.status === "rejected")
+    // Step 2: Delete the auth users, freeing their emails for re-use.
+    // This could not run earlier: workspaces.owner_id -> auth.users is
+    // NO ACTION, so the owner's auth row was pinned while the workspace
+    // existed. All workspace data is already committed at this point, so a
+    // failure here only means an email stays occupied — re-running the
+    // deletion is safe, and the details are logged for manual cleanup.
+    const authResults = await Promise.all(
+      profileIds.map(async (id: string) => {
+        // deleteUser resolves with { error } instead of throwing, so inspect
+        // the payload — allSettled alone would report these as successes.
+        const { error } = await adminClient.auth.admin.deleteUser(id)
+        return { id, error }
+      })
+    )
+
+    const failedAuth = authResults.filter((r) => r.error)
     if (failedAuth.length > 0) {
       console.error(
-        `[delete-workspace] Failed to delete ${failedAuth.length}/${profileIds.length} auth users:`,
-        failedAuth.map((r) => (r as PromiseRejectedResult).reason)
-      )
-    }
-
-    // Step 2: Delete slack_installations explicitly (installed_by FK has NO ACTION — blocks profile cascade)
-    const { error: deleteSlackError } = await adminClient
-      .from("slack_installations")
-      .delete()
-      .eq("workspace_id", workspace_id)
-
-    if (deleteSlackError) {
-      console.error("[delete-workspace] Failed to delete slack_installations:", deleteSlackError)
-      return new Response(
-        JSON.stringify({ error: `Failed to delete Slack data: ${deleteSlackError.message}` }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      )
-    }
-
-    // Step 3: Delete all profiles (cascades to requests, balances, slack_user_mappings)
-    const { error: deleteProfilesError } = await adminClient
-      .from("profiles")
-      .delete()
-      .eq("workspace_id", workspace_id)
-
-    if (deleteProfilesError) {
-      console.error("[delete-workspace] Failed to delete profiles:", deleteProfilesError)
-      return new Response(
-        JSON.stringify({ error: `Failed to delete workspace members: ${deleteProfilesError.message}` }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      )
-    }
-
-    // Step 4: Delete workspace (cascades to departments, categories, holidays, etc.)
-    const { error: deleteWsError } = await adminClient
-      .from("workspaces")
-      .delete()
-      .eq("id", workspace_id)
-
-    if (deleteWsError) {
-      console.error("[delete-workspace] Failed to delete workspace:", deleteWsError)
-      return new Response(
-        JSON.stringify({ error: `Failed to delete workspace: ${deleteWsError.message}` }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      )
-    }
-
-    // Step 5: Retry auth user deletion now that workspace FK reference is removed.
-    // Step 1 failed because workspaces.owner_id -> auth.users (NO ACTION) blocked it.
-    // Now the workspace is gone, so the auth users can be deleted to free their emails.
-    const retryDeletions = await Promise.allSettled(
-      profileIds.map((id: string) => adminClient.auth.admin.deleteUser(id))
-    )
-    const failedRetry = retryDeletions.filter((r) => r.status === "rejected")
-    if (failedRetry.length > 0) {
-      console.error(
-        `[delete-workspace] Failed to delete ${failedRetry.length}/${profileIds.length} auth users on retry:`,
-        failedRetry.map((r) => (r as PromiseRejectedResult).reason)
+        `[delete-workspace] Workspace data deleted, but ${failedAuth.length}/${profileIds.length} auth users remain:`,
+        failedAuth.map((r) => ({ id: r.id, message: r.error?.message }))
       )
     }
 
     return new Response(
-      JSON.stringify({ deleted: true }),
+      JSON.stringify({ deleted: true, orphanedAuthUsers: failedAuth.length }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     )
   } catch (err) {

@@ -23,10 +23,18 @@ import {
 } from "@/components/ui/select"
 import { useAuth } from "@/hooks/use-auth"
 import { useHolidays } from "@/hooks/use-holidays"
-import { useTimeOffCategories } from "@/hooks/use-time-off-categories"
+import { useTimeOffCategories, useCategoryAvailability } from "@/hooks/use-time-off-categories"
 import { useEmployeeBalances, useSubmitTimeOffRequestMutation } from "@/hooks/use-time-off-requests"
 import { addToast } from "@/lib/toast"
-import { calculateDays, formatDays, formatLocalDate, isBeforeDate, isSameDay } from "@/lib/date-utils"
+import {
+  calculateDays,
+  formatDate,
+  formatDays,
+  formatLocalDate,
+  isBeforeDate,
+  isSameDay,
+  parseDateLocal,
+} from "@/lib/date-utils"
 import { getBalanceText } from "@/lib/balance-utils"
 
 interface SubmitTimeOffRequestModalProps {
@@ -34,20 +42,15 @@ interface SubmitTimeOffRequestModalProps {
   onOpenChange: (open: boolean) => void
 }
 
-function mapRequestType(categoryName: string): string {
-  switch (categoryName.toLowerCase()) {
-    case "vacation": return "vacation"
-    case "sick leave": return "sick_leave"
-    case "personal": return "personal"
-    case "bereavement": return "bereavement"
-    default: return "other"
-  }
-}
+// The legacy request_type mapping used to live here; submit_time_off_request
+// now derives it from the category server-side, so there is one mapping again.
 
 const submitRequestSchema = z.object({
   categoryId: z.string().min(1, "Category is required"),
-  startDate: z.date({ required_error: "Start date is required" }),
-  endDate: z.date({ required_error: "End date is required" }),
+  // Zod v4 renamed required_error -> error; the old key was silently ignored,
+  // so these custom messages never actually reached the user.
+  startDate: z.date({ error: "Start date is required" }),
+  endDate: z.date({ error: "End date is required" }),
   startPeriod: z.enum(["morning", "midday"]),
   endPeriod: z.enum(["midday", "end_of_day"]),
   comment: z.string(),
@@ -64,9 +67,17 @@ export function SubmitTimeOffRequestModal({
   const today = useMemo(() => new Date(), [])
   const minDate = isAdmin ? undefined : today
   const { data: categories = [] } = useTimeOffCategories()
-  const { data: holidayRows = [] } = useHolidays()
+  // holidaysReady matters: with an empty list the day count silently treats
+  // public holidays as leave, so the preview would disagree with what the
+  // server stores. Block submission until the list has actually loaded.
+  const {
+    data: holidayRows = [],
+    isPending: holidaysLoading,
+    isError: holidaysFailed,
+  } = useHolidays()
   const submitMutation = useSubmitTimeOffRequestMutation()
 
+  const holidaysReady = !holidaysLoading && !holidaysFailed
   const holidayDates = useMemo(() => holidayRows.map((h) => h.date), [holidayRows])
 
   const { control, handleSubmit, reset, watch, setValue } = useForm<SubmitRequestFormData>({
@@ -97,10 +108,22 @@ export function SubmitTimeOffRequestModal({
   }, [open, reset])
 
   const { data: balances = [] } = useEmployeeBalances(profile?.id)
+  const { data: availability = [] } = useCategoryAvailability(profile?.id)
 
   const balanceMap = useMemo(
     () => new Map(balances.map((b) => [b.category_id, b])),
     [balances]
+  )
+
+  // Only categories with a new-hire waiting period land in the future here.
+  const availabilityMap = useMemo(
+    () =>
+      new Map(
+        availability
+          .filter((a) => isBeforeDate(new Date(), parseDateLocal(a.available_from)))
+          .map((a) => [a.category_id, a.available_from])
+      ),
+    [availability]
   )
 
   const activeCategories = useMemo(
@@ -162,32 +185,38 @@ export function SubmitTimeOffRequestModal({
     ((startDate != null && isBeforeDate(startDate, new Date())) ||
       (endDate != null && isBeforeDate(endDate, new Date())))
 
+  // A waiting period bars leave that STARTS before the category opens, not
+  // the act of booking it — the same rule the server enforces, so booking
+  // ahead for dates after the period is deliberately still allowed.
+  const availableFrom = categoryId ? availabilityMap.get(categoryId) : undefined
+  const beforeAvailable =
+    !!availableFrom &&
+    startDate != null &&
+    isBeforeDate(startDate, parseDateLocal(availableFrom))
+
   const isValid =
     !!categoryId && !!startDate && !!endDate &&
     totalDays != null && totalDays > 0 &&
+    holidaysReady &&
     !hasPastDates &&
+    !beforeAvailable &&
     !insufficientBalance
 
   const onSubmit = handleSubmit((data) => {
     if (!isValid || !profile || !workspace || totalDays == null) return
 
-    const employeeName = [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.email
-
     submitMutation.mutate(
       {
-        workspace_id: workspace.id,
+        // total_days, status, request_type and the employee's name/email/avatar
+        // are all derived by the submit_time_off_request RPC. The number shown
+        // above is a preview of the server's calculation, not the stored value.
         profile_id: profile.id,
         category_id: data.categoryId,
         start_date: formatLocalDate(data.startDate),
         end_date: formatLocalDate(data.endDate),
         start_period: data.startPeriod,
         end_period: data.endPeriod,
-        total_days: totalDays,
-        employee_name: employeeName,
-        employee_email: profile.email,
-        employee_avatar_url: profile.avatar_url ?? null,
         comment: comment.trim() || null,
-        request_type: mapRequestType(selectedCategory?.name ?? ""),
       },
       {
         onSuccess: () => {
@@ -237,9 +266,11 @@ export function SubmitTimeOffRequestModal({
                             {cat.emoji ? `${cat.name} ${cat.emoji}` : cat.name}
                           </span>
                           <span className="ml-2 shrink-0 font-normal text-muted-foreground text-xs">
-                            {cat.accrual_method === "unlimited"
-                              ? "Unlimited"
-                              : getBalanceText(balanceMap.get(cat.id)?.remaining_days)}
+                            {availabilityMap.has(cat.id)
+                              ? `From ${formatDate(availabilityMap.get(cat.id))}`
+                              : cat.accrual_method === "unlimited"
+                                ? "Unlimited"
+                                : getBalanceText(balanceMap.get(cat.id)?.remaining_days)}
                           </span>
                         </span>
                       </SelectItem>
@@ -328,6 +359,24 @@ export function SubmitTimeOffRequestModal({
               <p className="text-sm leading-5 tracking-tight text-muted-foreground">
                 Total:{" "}
                 <span className="font-medium text-foreground">{formatDays(totalDays)}</span>
+              </p>
+            )}
+            {startDate != null && endDate != null && totalDays === 0 && (
+              <p className="text-sm leading-5 tracking-tight text-[var(--color-warning)]">
+                Those dates contain no working days — weekends and holidays don't count
+              </p>
+            )}
+            {!holidaysReady && (
+              <p className="text-sm leading-5 tracking-tight text-muted-foreground">
+                {holidaysFailed
+                  ? "Couldn't load the holiday calendar, so the day count may be wrong. Try reopening this form."
+                  : "Checking the holiday calendar…"}
+              </p>
+            )}
+            {beforeAvailable && (
+              <p className="text-sm leading-5 tracking-tight text-[var(--color-error)]">
+                This category isn't available to you until{" "}
+                {formatDate(availableFrom)} — pick a later start date
               </p>
             )}
             {insufficientBalance && (

@@ -6,13 +6,14 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function getInitials(firstName?: string, lastName?: string): string | undefined {
+// Accept null as well as undefined: these read straight from nullable DB columns.
+export function getInitials(firstName?: string | null, lastName?: string | null): string | undefined {
   const f = firstName?.trim().charAt(0).toUpperCase() ?? ""
   const l = lastName?.trim().charAt(0).toUpperCase() ?? ""
   return (f + l) || undefined
 }
 
-export function getDisplayName(firstName?: string, lastName?: string): string {
+export function getDisplayName(firstName?: string | null, lastName?: string | null): string {
   return [firstName?.trim(), lastName?.trim()].filter(Boolean).join(" ")
 }
 

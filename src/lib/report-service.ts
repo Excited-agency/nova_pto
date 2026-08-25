@@ -1,6 +1,8 @@
 import { supabase } from "@/lib/supabase"
 
-export interface ReportEmployee {
+// Internal row shapes: only this module's own exported functions reference
+// them, so they stay unexported to keep the service's public surface minimal.
+interface ReportEmployee {
   id: string
   first_name: string | null
   last_name: string | null
@@ -11,10 +13,21 @@ export interface ReportEmployee {
   location: string | null
 }
 
-export interface ReportBalance {
+interface ReportBalance {
   employee_id: string
   category_id: string
   remaining_days: number
+}
+
+/**
+ * Reads the joined department name. PostgREST returns an object for a
+ * to-one relation but an array when it cannot prove cardinality, so accept
+ * both instead of asserting one shape.
+ */
+function departmentName(relation: unknown): string | null {
+  if (!relation) return null
+  const row = Array.isArray(relation) ? relation[0] : relation
+  return (row as { name?: string } | undefined)?.name ?? null
 }
 
 export async function fetchReportEmployees(
@@ -34,7 +47,7 @@ export async function fetchReportEmployees(
     first_name: row.first_name,
     last_name: row.last_name,
     email: row.email,
-    department_name: (row.departments as { name: string } | null)?.name ?? null,
+    department_name: departmentName(row.departments),
     status: row.status,
     hire_date: row.hire_date,
     location: row.location,

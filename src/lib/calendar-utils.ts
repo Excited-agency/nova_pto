@@ -1,5 +1,5 @@
 import type { CategoryColor } from "@/lib/category-colors"
-import type { TimeOffRequest, TimeOffStatus } from "@/types/time-off-request"
+import type { TimeOffRequest } from "@/types/time-off-request"
 import type { Holiday } from "@/types/holiday"
 import type { CalendarDay, CalendarEvent, WeekEventSegment, CalendarWeek } from "@/types/calendar"
 

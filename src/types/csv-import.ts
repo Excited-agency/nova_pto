@@ -1,3 +1,5 @@
+import type { AssignableRole } from "@/types/employee"
+
 export type SchemaField =
   | "email"
   | "first_name"
@@ -23,7 +25,11 @@ export interface CsvEmployeeRow {
   last_name: string
   department: string
   department_id: string | null
-  role: string
+  /**
+   * Already normalised by processRows to a role an admin may assign, so the
+   * import path cannot smuggle "owner" (or a typo) into an invite payload.
+   */
+  role: AssignableRole
   location: string
   hire_date: string
 }

@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react"
 import { useNavigate, useLocation, Navigate } from "react-router-dom"
-import { supabase } from "@/lib/supabase"
-import { getSiteUrl } from "@/lib/site-url"
+import { sendMagicLink } from "@/lib/auth-service"
 import { onAuthComplete } from "@/lib/auth-channel"
 import { useAuth } from "@/hooks/use-auth"
 import { AuthLayout } from "@/components/auth-layout"
@@ -61,11 +60,7 @@ export function CheckEmailPage() {
   async function handleResend() {
     setResending(true)
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email!,
-        options: { emailRedirectTo: `${getSiteUrl()}/auth/callback` },
-      })
-      if (error) throw error
+      await sendMagicLink(email!)
       addToast({ title: "Email resent", description: `A new link was sent to ${email}.` })
     } catch (err) {
       console.error("Failed to resend OTP:", err)

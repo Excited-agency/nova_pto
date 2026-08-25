@@ -4,7 +4,7 @@ import { Lock } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/hooks/use-auth"
-import { supabase } from "@/lib/supabase"
+import { fetchWorkspaceAdminEmail } from "@/lib/settings-service"
 
 export function AccessRestrictedPage() {
   const { signOut, profile } = useAuth()
@@ -12,23 +12,18 @@ export function AccessRestrictedPage() {
   const [adminEmail, setAdminEmail] = useState<string | null>(null)
 
   useEffect(() => {
-    async function fetchAdminEmail() {
-      if (!profile?.workspace_id) return
+    const workspaceId = profile?.workspace_id
+    if (!workspaceId) return
 
-      const { data } = await supabase
-        .from("profiles")
-        .select("email")
-        .eq("workspace_id", profile.workspace_id)
-        .eq("role", "admin")
-        .limit(1)
-        .single()
+    let cancelled = false
 
-      if (data) {
-        setAdminEmail(data.email)
-      }
+    fetchWorkspaceAdminEmail(workspaceId).then((email) => {
+      if (!cancelled) setAdminEmail(email)
+    })
+
+    return () => {
+      cancelled = true
     }
-
-    fetchAdminEmail()
   }, [profile?.workspace_id])
 
   async function handleBackToLogin() {

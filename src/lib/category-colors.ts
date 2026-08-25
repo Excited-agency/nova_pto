@@ -7,7 +7,3 @@ export const CATEGORY_COLORS: { value: CategoryColor; label: string; hex: string
   { value: "blue", label: "Blue", hex: "#60A5FA" },
   { value: "gray", label: "Gray", hex: "#D4D4D8" },
 ]
-
-export function getCategoryColorHex(color: string): string {
-  return CATEGORY_COLORS.find((c) => c.value === color)?.hex ?? CATEGORY_COLORS[0].hex
-}

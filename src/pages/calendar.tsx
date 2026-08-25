@@ -107,7 +107,8 @@ export function CalendarPage() {
       employees.map((e) => ({
         id: e.id,
         label: [e.first_name, e.last_name].filter(Boolean).join(" ") || e.email,
-        avatarUrl: e.avatar_url,
+        // FilterOption uses optional props, so normalise DB nulls to undefined.
+        avatarUrl: e.avatar_url ?? undefined,
         initials: getInitials(e.first_name, e.last_name),
       })),
     [employees]

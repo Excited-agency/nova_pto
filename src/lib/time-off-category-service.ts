@@ -7,11 +7,10 @@ import type {
 
 export type { CreateCategoryData, UpdateCategoryData } from "@/types/time-off-category"
 
-const CATEGORY_FIELDS =
-  "id, workspace_id, name, emoji, colour, is_active, leave_type, accrual_method, " +
-  "amount_value, granting_frequency, accrual_day, anniversary_years, new_hire_rule, " +
-  "waiting_period_value, waiting_period_unit, carryover_limit_enabled, carryover_max_days, " +
-  "carryover_expiration_value, carryover_expiration_unit, sort_order, created_at, updated_at"
+// Kept as ONE string literal on purpose: supabase-js infers the row shape from
+// the literal type of the select string, and concatenating with `+` widens it to
+// `string`, which makes every query using it resolve to GenericStringError.
+const CATEGORY_FIELDS = "id, workspace_id, name, emoji, colour, is_active, leave_type, accrual_method, amount_value, granting_frequency, accrual_day, anniversary_years, new_hire_rule, waiting_period_value, waiting_period_unit, carryover_limit_enabled, carryover_max_days, carryover_expiration_value, carryover_expiration_unit, sort_order, created_at, updated_at"
 
 export async function fetchCategory(categoryId: string, workspaceId: string): Promise<TimeOffCategory> {
   const { data, error } = await supabase
@@ -102,4 +101,30 @@ export async function updateCategorySortOrder(
     p_updates: items,
   })
   if (error) throw error
+}
+
+export interface CategoryAvailability {
+  category_id: string
+  /** ISO date. Leave in this category may not START before it. */
+  available_from: string
+}
+
+/**
+ * When each active category opens up for an employee.
+ *
+ * Derived server-side from the employee's hire date and the category's
+ * new-hire waiting period, so the form can grey out a category and say when
+ * it becomes usable instead of letting the employee submit and be refused.
+ * The same rule is enforced by a BEFORE INSERT trigger on time_off_requests —
+ * this call is the explanation, not the enforcement.
+ */
+export async function fetchCategoryAvailability(
+  employeeId: string
+): Promise<CategoryAvailability[]> {
+  const { data, error } = await supabase.rpc("category_availability", {
+    p_employee_id: employeeId,
+  })
+
+  if (error) throw error
+  return (data ?? []) as CategoryAvailability[]
 }

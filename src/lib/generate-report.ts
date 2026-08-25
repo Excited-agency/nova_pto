@@ -1,22 +1,7 @@
 import { fetchReportEmployees, fetchAllEmployeeBalances } from "@/lib/report-service"
 import { fetchTimeOffRequests } from "@/lib/time-off-request-service"
 import { fetchTimeOffCategories } from "@/lib/time-off-category-service"
-
-const legacyTypeLabels: Record<string, string> = {
-  vacation: "Vacation",
-  sick_leave: "Sick Leave",
-  personal: "Personal",
-  bereavement: "Bereavement",
-  other: "Other",
-}
-
-// Simple calendar-day fallback for legacy records where total_days was not stored.
-// Matches the backfill in 20260320000000_add_half_day_periods migration.
-function calendarDaysFallback(startDate: string, endDate: string): number {
-  const start = new Date(startDate)
-  const end = new Date(endDate)
-  return Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
-}
+import { getCategoryDisplay } from "@/lib/request-display"
 
 function getEmployeeName(firstName: string | null, lastName: string | null): string {
   return [firstName, lastName].filter(Boolean).join(" ") || "—"
@@ -67,8 +52,12 @@ export async function generateReport(workspaceId: string): Promise<void> {
   })
 
   // --- Sheet 2: Request History ---
-  const categoryMap = new Map<string, string>()
-  for (const c of categories) categoryMap.set(c.id, c.name)
+  // Emoji deliberately omitted — a spreadsheet cell reads better as plain
+  // text. The map shape is what getCategoryDisplay expects, so the report and
+  // the UI resolve a leave type the same way, including the fallback to the
+  // category_name snapshot for categories that have since been deleted.
+  const categoryMap = new Map<string, { name: string; emoji?: string | null }>()
+  for (const c of categories) categoryMap.set(c.id, { name: c.name })
 
   const requestHeaders = [
     "Employee Name",
@@ -83,16 +72,18 @@ export async function generateReport(workspaceId: string): Promise<void> {
   ]
 
   const requestRows = requests.map((req) => {
-    const typeName = req.category_id
-      ? categoryMap.get(req.category_id) ?? legacyTypeLabels[req.request_type] ?? "Other"
-      : legacyTypeLabels[req.request_type] ?? "Other"
+    const typeName = getCategoryDisplay(req, categoryMap)
 
     return [
       req.employee_name,
       typeName,
       req.start_date,
       req.end_date,
-      req.total_days ?? calendarDaysFallback(req.start_date, req.end_date),
+      // total_days is NOT NULL and always server-computed (weekends and
+      // holidays excluded), so report it as stored. The old fallback here
+      // counted raw calendar days, which would have inflated a duration
+      // rather than admit it was missing.
+      req.total_days,
       req.status.charAt(0).toUpperCase() + req.status.slice(1),
       req.comment ?? "",
       req.rejection_reason ?? "",

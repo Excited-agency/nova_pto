@@ -4,8 +4,9 @@ import type {
   RowValidation,
 } from "@/types/csv-import"
 import { splitFullName } from "@/lib/csv-header-mapping"
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/
+import { isValidEmail } from "@/lib/validation"
+import { formatLocalDate } from "@/lib/date-utils"
+import type { AssignableRole } from "@/types/employee"
 
 /**
  * Try to parse a date string in multiple common formats.
@@ -50,10 +51,13 @@ function parseDate(value: string): string {
     }
   }
 
-  // Last resort: try native Date parsing
+  // Last resort: try native Date parsing.
+  // Formats like "March 5 2026" parse as LOCAL midnight, so read the date back
+  // with local getters — toISOString() would convert to UTC first and shift the
+  // day backwards for anyone east of UTC.
   const d = new Date(trimmed)
   if (!isNaN(d.getTime())) {
-    return d.toISOString().split("T")[0]
+    return formatLocalDate(d)
   }
 
   return ""
@@ -61,8 +65,9 @@ function parseDate(value: string): string {
 
 /**
  * Normalize a role value to "admin" or "user".
+ * Returns AssignableRole so an imported row can never carry "owner".
  */
-function normalizeRole(value: string): string {
+function normalizeRole(value: string): AssignableRole {
   const lower = value.toLowerCase().trim()
   if (lower === "admin" || lower === "administrator") return "admin"
   return "user"
@@ -140,7 +145,7 @@ export function processRows({
         message: "Email is required",
         severity: "error",
       })
-    } else if (!EMAIL_REGEX.test(email)) {
+    } else if (!isValidEmail(email)) {
       rowValidations.push({
         rowIndex,
         field: "email",
@@ -262,16 +267,4 @@ export function rowHasErrors(
   const issues = validations.get(rowIndex)
   if (!issues) return false
   return issues.some((v) => v.severity === "error")
-}
-
-/**
- * Checks if a row has only warnings (no errors).
- */
-export function rowHasWarnings(
-  rowIndex: number,
-  validations: Map<number, RowValidation[]>
-): boolean {
-  const issues = validations.get(rowIndex)
-  if (!issues) return false
-  return issues.some((v) => v.severity === "warning") && !rowHasErrors(rowIndex, validations)
 }

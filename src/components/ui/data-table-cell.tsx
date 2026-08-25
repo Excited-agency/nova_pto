@@ -1,5 +1,5 @@
 import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
+import { cva } from "class-variance-authority"
 import { EllipsisIcon, GripVerticalIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -259,6 +259,7 @@ function DataTableCell({
       case "toggle":
         return (
           <ToggleGroup
+            type="single"
             variant="outline"
             value={toggleValue}
             onValueChange={onToggleChange}

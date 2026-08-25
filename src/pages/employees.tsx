@@ -49,11 +49,12 @@ import {
 } from "@/hooks/use-employees"
 import { useDepartments } from "@/hooks/use-departments"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
-import { DEBOUNCE_DELAY_MS, EMPLOYEES_PAGE_SIZE } from "@/lib/constants"
+import { DEBOUNCE_DELAY_MS } from "@/lib/constants"
 import { getInitials, getDisplayName } from "@/lib/utils"
 import { addToast } from "@/lib/toast"
 import { formatDate } from "@/lib/date-utils"
 import { employeeKeys } from "@/lib/query-keys"
+import { removeFromPaginatedCache, type PaginatedCache } from "@/lib/query-cache-utils"
 import { CsvImportModal } from "@/components/csv-import-modal"
 import { EmployeeFilters } from "@/components/employees/employee-filters"
 import { EmployeeBulkActionBar } from "@/components/employees/employee-bulk-action-bar"
@@ -425,9 +426,9 @@ export function EmployeesPage() {
   const handleDeleteConfirm = useCallback(() => {
     if (!deleteTarget || !workspace) return
     const target = deleteTarget
-    queryClient.setQueryData(
+    queryClient.setQueryData<PaginatedCache<Profile>>(
       employeeKeys.list(workspace.id, activeTab),
-      (old: Profile[] | undefined) => (old ?? []).filter((e) => e.id !== target.id)
+      (old) => removeFromPaginatedCache(old, [target.id])
     )
     setDeleteTarget(null)
     deleteMutation.mutate(target.id, {
@@ -468,9 +469,9 @@ export function EmployeesPage() {
   const handleBulkDeactivateConfirm = useCallback(() => {
     if (!workspace) return
     const ids = [...selectedIds]
-    queryClient.setQueryData(
+    queryClient.setQueryData<PaginatedCache<Profile>>(
       employeeKeys.list(workspace.id, "active"),
-      (old: Profile[] | undefined) => (old ?? []).filter((e) => !ids.includes(e.id))
+      (old) => removeFromPaginatedCache(old, ids)
     )
     setSelectedIds(new Set())
     setBulkDeactivateOpen(false)
@@ -494,9 +495,9 @@ export function EmployeesPage() {
   const handleBulkDeleteConfirm = useCallback(() => {
     if (!workspace) return
     const ids = [...selectedIds]
-    queryClient.setQueryData(
+    queryClient.setQueryData<PaginatedCache<Profile>>(
       employeeKeys.list(workspace.id, activeTab),
-      (old: Profile[] | undefined) => (old ?? []).filter((e) => !ids.includes(e.id))
+      (old) => removeFromPaginatedCache(old, ids)
     )
     setSelectedIds(new Set())
     setBulkDeleteOpen(false)

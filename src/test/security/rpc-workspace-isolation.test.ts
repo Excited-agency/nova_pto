@@ -80,6 +80,13 @@ describe.skipIf(skipIfNoServiceKey())("RPC workspace isolation (CRIT-17..22)", (
   })
 
   describe("CRIT-20: create_time_off_record cross-workspace blocked", () => {
+    // This test used to pass for the wrong reason: it sent a `p_request_type`
+    // argument that create_time_off_record has never accepted, so PostgREST
+    // rejected the call as an unknown function before any security check ran,
+    // and the loose /not found/ assertion swallowed that. It therefore stayed
+    // green through the whole period when the workspace guard was missing.
+    // The argument list now matches the real signature and the assertion
+    // requires the guard's own message.
     it("Admin A cannot create record in workspace B", async () => {
       const { error } = await adminA.userClient.rpc("create_time_off_record", {
         p_workspace_id: adminB.workspaceId,
@@ -87,14 +94,33 @@ describe.skipIf(skipIfNoServiceKey())("RPC workspace isolation (CRIT-17..22)", (
         p_category_id: null,
         p_start_date: "2026-09-01",
         p_end_date: "2026-09-01",
+        p_comment: null,
         p_start_period: "morning",
         p_end_period: "end_of_day",
-        p_request_type: "vacation",
-        p_comment: null,
       })
 
       expect(error).toBeTruthy()
-      expect(error!.message.toLowerCase()).toMatch(/permission denied|workspace|not found/i)
+      expect(error!.message).toMatch(/workspace does not belong to the current user/i)
+    })
+
+    it("the same call against the caller's own workspace gets past the guard", async () => {
+      // Differential check: proves the rejection above comes from the workspace
+      // guard specifically, not from a malformed call that would fail for any
+      // workspace id. A bogus employee id means this must fail LATER, on lookup.
+      const { error } = await adminA.userClient.rpc("create_time_off_record", {
+        p_workspace_id: adminA.workspaceId,
+        p_employee_id: "00000000-0000-0000-0000-000000000000",
+        p_category_id: null,
+        p_start_date: "2026-09-01",
+        p_end_date: "2026-09-01",
+        p_comment: null,
+        p_start_period: "morning",
+        p_end_period: "end_of_day",
+      })
+
+      expect(error).toBeTruthy()
+      expect(error!.message).toMatch(/employee not found in this workspace/i)
+      expect(error!.message).not.toMatch(/workspace does not belong/i)
     })
   })
 

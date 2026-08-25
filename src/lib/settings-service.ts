@@ -33,6 +33,30 @@ export async function updateProfile(
   if (error) throw error
 }
 
+/**
+ * Email of someone who can re-enable a locked-out account. Used by the
+ * access-restricted screen, so it must not throw: without an email the page
+ * still renders a useful message.
+ *
+ * Owners are included alongside admins to match is_workspace_admin(), so a
+ * workspace whose only privileged member is the owner still shows a contact.
+ */
+export async function fetchWorkspaceAdminEmail(
+  workspaceId: string
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("email")
+    .eq("workspace_id", workspaceId)
+    .in("role", ["admin", "owner"])
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle()
+
+  if (error) return null
+  return data?.email ?? null
+}
+
 export async function fetchDepartments(workspaceId: string): Promise<Department[]> {
   const { data, error } = await supabase
     .from("departments")

@@ -105,10 +105,18 @@ AlertDialogDescription.displayName = "AlertDialogDescription"
 
 const AlertDialogAction = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Action>,
-  React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Action>
->(({ className, children, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Action> &
+    // The rendered child is our Button, so surface its pending-state props here
+    // instead of leaking them through asChild untyped.
+    Pick<React.ComponentProps<typeof Button>, "loading" | "loadingText">
+>(({ className, children, loading, loadingText, ...props }, ref) => (
   <AlertDialogPrimitive.Action ref={ref} asChild {...props}>
-    <Button variant="default" className={cn("w-full sm:w-auto", className)}>
+    <Button
+      variant="default"
+      className={cn("w-full sm:w-auto", className)}
+      loading={loading}
+      loadingText={loadingText}
+    >
       {children}
     </Button>
   </AlertDialogPrimitive.Action>

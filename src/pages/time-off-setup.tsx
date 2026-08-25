@@ -48,7 +48,9 @@ import { useHolidays, useDeleteHolidayMutation, useBulkDeleteHolidaysMutation } 
 import { addToast } from "@/lib/toast"
 import { cn } from "@/lib/utils"
 import { holidayKeys } from "@/lib/query-keys"
+import { removeFromListCache } from "@/lib/query-cache-utils"
 import type { TimeOffCategory } from "@/types/time-off-category"
+import type { Holiday } from "@/types/holiday"
 
 type TabValue = "categories" | "holidays"
 
@@ -179,7 +181,7 @@ export function TimeOffSetupPage() {
     const ids = [...selectedHolidayIds]
     queryClient.setQueryData(
       holidayKeys.list(workspace.id),
-      (old: Holiday[] | undefined) => (old ?? []).filter((h) => !ids.includes(h.id))
+      (old: Holiday[] | undefined) => removeFromListCache(old, ids)
     )
     setSelectedHolidayIds(new Set())
     setBulkHolidayDeleteOpen(false)
@@ -433,8 +435,10 @@ export function TimeOffSetupPage() {
             <AlertDialogTitle>Delete category</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete{" "}
-              {deleteTarget ? deleteTarget.name : ""}? This action cannot be
-              undone.
+              {deleteTarget ? deleteTarget.name : ""}? Every employee's
+              remaining balance for it will be removed, and the category will
+              disappear from new requests. Past requests and the balance
+              history keep this name in your reports. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

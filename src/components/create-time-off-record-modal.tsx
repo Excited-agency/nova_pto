@@ -57,8 +57,10 @@ function isItemDisabled(
 const createRecordSchema = z.object({
   employeeId: z.string().min(1, "Employee is required"),
   categoryId: z.string().min(1, "Category is required"),
-  startDate: z.date({ required_error: "Start date is required" }),
-  endDate: z.date({ required_error: "End date is required" }),
+  // Zod v4 renamed required_error -> error; the old key was silently ignored,
+  // so these custom messages never actually reached the user.
+  startDate: z.date({ error: "Start date is required" }),
+  endDate: z.date({ error: "End date is required" }),
   startPeriod: z.enum(["morning", "midday"]),
   endPeriod: z.enum(["midday", "end_of_day"]),
   comment: z.string(),
@@ -75,9 +77,17 @@ export function CreateTimeOffRecordModal({
   const isAdmin = profile?.role === "admin" || profile?.role === "owner"
   const { data: employees = [] } = useActiveEmployees()
   const { data: categories = [] } = useTimeOffCategories()
-  const { data: holidayRows = [] } = useHolidays()
+  // See the submit modal: an empty holiday list makes the day count treat
+  // holidays as leave, so the admin would be shown a total the RPC disagrees
+  // with. Wait for the list before allowing the record to be created.
+  const {
+    data: holidayRows = [],
+    isPending: holidaysLoading,
+    isError: holidaysFailed,
+  } = useHolidays()
   const createMutation = useCreateTimeOffRecordMutation()
 
+  const holidaysReady = !holidaysLoading && !holidaysFailed
   const holidayDates = useMemo(
     () => holidayRows.map((h) => h.date),
     [holidayRows]
@@ -200,6 +210,7 @@ export function CreateTimeOffRecordModal({
     hasRequiredFields &&
     totalDays != null &&
     totalDays > 0 &&
+    holidaysReady &&
     !insufficientBalance &&
     !noBalance &&
     !balancesLoading
@@ -381,6 +392,18 @@ export function CreateTimeOffRecordModal({
                 <span className="font-medium text-foreground">
                   {formatDays(totalDays)}
                 </span>
+              </p>
+            )}
+            {startDate != null && endDate != null && totalDays === 0 && (
+              <p className="text-sm leading-5 tracking-tight text-destructive">
+                Those dates contain no working days — weekends and holidays don't count
+              </p>
+            )}
+            {!holidaysReady && (
+              <p className="text-sm leading-5 tracking-tight text-muted-foreground">
+                {holidaysFailed
+                  ? "Couldn't load the holiday calendar, so the day count may be wrong. Try reopening this form."
+                  : "Checking the holiday calendar…"}
               </p>
             )}
             {/* Insufficient balance warning */}

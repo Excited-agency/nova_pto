@@ -32,12 +32,23 @@ export function formatLocalDate(date: Date): string {
   return `${y}-${m}-${d}`
 }
 
+/**
+ * Leave days between two dates, excluding weekends and holidays.
+ *
+ * Mirrors the server's count_leave_days() (migration 20260825180000) — the
+ * server is authoritative; this exists so the UI can show the same number
+ * without a round-trip. Keep the two in step.
+ *
+ * `holidays` is REQUIRED on purpose. It used to default to `[]`, so any caller
+ * that forgot it silently counted public holidays as leave and showed the
+ * employee a number the server would never agree with.
+ */
 export function calculateDays(
   startDate: string,
   endDate: string,
-  startPeriod: "morning" | "midday" = "morning",
-  endPeriod: "midday" | "end_of_day" = "end_of_day",
-  holidays: string[] = []
+  startPeriod: "morning" | "midday",
+  endPeriod: "midday" | "end_of_day",
+  holidays: string[]
 ): number {
   const startPortion = startPeriod === "morning" ? 1.0 : 0.5
   const endPortion = endPeriod === "end_of_day" ? 1.0 : 0.5
@@ -109,15 +120,4 @@ export function isBeforeDate(date: Date, referenceDate: Date): boolean {
   if (date.getMonth() < referenceDate.getMonth()) return true
   if (date.getMonth() > referenceDate.getMonth()) return false
   return date.getDate() < referenceDate.getDate()
-}
-
-export function formatDateTime(isoString: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  }).format(new Date(isoString))
 }

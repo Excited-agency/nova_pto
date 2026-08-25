@@ -12,12 +12,18 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
+    // vitest runs with globals: true, so describe/it/expect/vi are ambient in
+    // src/test/**. Declaring them here lets `npm run typecheck` cover the tests
+    // too instead of reporting "Cannot find name 'vi'".
+    "types": ["vitest/globals"],
     "strict": true,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
-    "baseUrl": ".",
+    // No "baseUrl": it is deprecated (TS5101) and errors out under TS 6,
+    // which silently disabled type-checking entirely. "paths" resolves
+    // relative to this file, so the @/* alias works without it.
     "paths": {
       "@/*": ["./src/*"]
     }

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
-import { supabase } from "@/lib/supabase"
+import { exchangeCodeForSession, getCurrentSession } from "@/lib/auth-service"
 import { runFounderFlow } from "@/lib/founder-flow"
 import { broadcastAuthComplete } from "@/lib/auth-channel"
 import { addToast } from "@/lib/toast"
@@ -47,12 +47,13 @@ export function AuthCallbackPage() {
 
       // Case 2: PKCE code present — exchange for session
       if (code) {
-        const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+        const { session: exchangedSession, error: exchangeError } =
+          await exchangeCodeForSession(code)
 
-        let session = data?.session
+        let session = exchangedSession
         if (exchangeError) {
           // Check if auto-detection already handled it (race condition)
-          const { data: { session: existingSession } } = await supabase.auth.getSession()
+          const existingSession = await getCurrentSession()
           if (existingSession) {
             session = existingSession
           } else {
@@ -87,7 +88,7 @@ export function AuthCallbackPage() {
 
       // Case 3: No code, no error — legacy hash flow or direct visit
       // detectSessionInUrl handles hash fragments automatically.
-      const { data: { session } } = await supabase.auth.getSession()
+      const session = await getCurrentSession()
       if (session) {
         broadcastAuthComplete()
         window.location.replace("/requests")

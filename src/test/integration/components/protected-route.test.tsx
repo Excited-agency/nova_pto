@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest"
 import { screen } from "@testing-library/react"
 import { ProtectedRoute } from "@/components/protected-route"
 import { renderWithProviders, makeUser, makeProfile, makeWorkspace } from "@/test/utils/render"
-import { Navigate } from "react-router-dom"
 import userEvent from "@testing-library/user-event"
 
 function DummyChild() {

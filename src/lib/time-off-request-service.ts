@@ -6,15 +6,17 @@ import type { BalanceAdjustmentLog } from "@/types/balance-adjustment-log"
 
 export type { CreateTimeOffRecordParams, SubmitTimeOffRequestParams, ComboboxEmployee } from "@/types/time-off-request"
 
+// These select lists must stay as SINGLE string literals: supabase-js derives the
+// row type from the literal, and joining parts with `+` widens it to `string`,
+// which collapses the result type to GenericStringError.
+const REQUEST_FIELDS = "id, profile_id, workspace_id, category_id, category_name, employee_name, employee_email, employee_avatar_url, start_date, end_date, start_period, end_period, total_days, request_type, status, comment, rejection_reason, reviewed_by, reviewed_at, created_at, updated_at"
+
+const BALANCE_LOG_FIELDS = "id, employee_id, category_id, category_name, workspace_id, delta, balance_before, balance_after, reason, request_id, adjusted_by, created_at"
+
 export async function fetchTimeOffRequests(workspaceId: string) {
   const { data, error } = await supabase
     .from("time_off_requests_safe")
-    .select(
-      "id, profile_id, workspace_id, category_id, employee_name, employee_email, " +
-      "employee_avatar_url, start_date, end_date, start_period, end_period, " +
-      "total_days, request_type, status, comment, rejection_reason, " +
-      "reviewed_by, reviewed_at, created_at, updated_at"
-    )
+    .select(REQUEST_FIELDS)
     .eq("workspace_id", workspaceId)
     .neq("status", "withdrawn")
     .order("created_at", { ascending: false })
@@ -150,29 +152,21 @@ export async function approveTimeOffRequest(requestId: string) {
   return data
 }
 
-export async function withdrawTimeOffRequest(requestId: string, workspaceId: string) {
-  const { data, error } = await supabase
-    .from("time_off_requests")
-    .update({ status: "withdrawn" })
-    .eq("id", requestId)
-    .eq("workspace_id", workspaceId)
-    .eq("status", "pending")
-    .select()
-    .single()
+export async function withdrawTimeOffRequest(requestId: string) {
+  // RPC, not a table update: clients have no UPDATE privilege on
+  // time_off_requests, so status transitions stay server-owned.
+  const { data, error } = await supabase.rpc("withdraw_time_off_request", {
+    p_request_id: requestId,
+  })
 
   if (error) throw error
-  return data as TimeOffRequest
+  return data
 }
 
 export async function fetchMyTimeOffRequests(profileId: string, workspaceId: string) {
   const { data, error } = await supabase
     .from("time_off_requests_safe")
-    .select(
-      "id, profile_id, workspace_id, category_id, employee_name, employee_email, " +
-      "employee_avatar_url, start_date, end_date, start_period, end_period, " +
-      "total_days, request_type, status, comment, rejection_reason, " +
-      "reviewed_by, reviewed_at, created_at, updated_at"
-    )
+    .select(REQUEST_FIELDS)
     .eq("profile_id", profileId)
     .eq("workspace_id", workspaceId)
     .order("created_at", { ascending: false })
@@ -182,36 +176,29 @@ export async function fetchMyTimeOffRequests(profileId: string, workspaceId: str
 }
 
 export async function submitTimeOffRequest(params: SubmitTimeOffRequestParams) {
-  const { data, error } = await supabase
-    .from("time_off_requests")
-    .insert({
-      profile_id: params.profile_id,
-      workspace_id: params.workspace_id,
-      category_id: params.category_id,
-      start_date: params.start_date,
-      end_date: params.end_date,
-      start_period: params.start_period,
-      end_period: params.end_period,
-      total_days: params.total_days,
-      employee_name: params.employee_name,
-      employee_email: params.employee_email,
-      employee_avatar_url: params.employee_avatar_url ?? null,
-      status: "pending",
-      comment: params.comment ?? null,
-      request_type: params.request_type,
-    })
-    .select()
-    .single()
+  // RPC, not a table insert. The server derives total_days, status, the
+  // denormalised employee fields and request_type, so a request can no longer
+  // be created with a day count (or a status) chosen by the browser.
+  const { data, error } = await supabase.rpc("submit_time_off_request", {
+    p_category_id: params.category_id,
+    p_start_date: params.start_date,
+    p_end_date: params.end_date,
+    p_start_period: params.start_period,
+    p_end_period: params.end_period,
+    p_comment: params.comment ?? null,
+  })
 
   if (error) throw error
+
+  const created = data as { id: string; total_days: number; workspace_id: string }
 
   // Fire-and-forget: Slack notification (admin DMs + employee DM with Withdraw)
   supabase.functions
     .invoke("slack-notify", {
       body: {
         action: "submitted",
-        request_id: data.id,
-        workspace_id: params.workspace_id,
+        request_id: created.id,
+        workspace_id: created.workspace_id,
         employee_profile_id: params.profile_id,
       },
     })
@@ -222,7 +209,7 @@ export async function submitTimeOffRequest(params: SubmitTimeOffRequestParams) {
       console.warn("[submitTimeOffRequest] Slack notification failed (non-fatal):", err)
     })
 
-  return data as TimeOffRequest
+  return created
 }
 
 export async function fetchActiveEmployeesForCombobox(workspaceId: string) {
@@ -243,10 +230,7 @@ export async function fetchBalanceAdjustmentLog(
 ): Promise<BalanceAdjustmentLog[]> {
   const { data, error } = await supabase
     .from("balance_adjustment_log")
-    .select(
-      "id, employee_id, category_id, workspace_id, delta, balance_before, " +
-      "balance_after, reason, request_id, adjusted_by, created_at"
-    )
+    .select(BALANCE_LOG_FIELDS)
     .eq("employee_id", employeeId)
     .eq("workspace_id", workspaceId)
     .order("created_at", { ascending: false })

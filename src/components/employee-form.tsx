@@ -23,14 +23,21 @@ import { LocationCombobox } from "@/components/ui/location-combobox"
 import { useDepartments } from "@/hooks/use-departments"
 import { useImageUpload } from "@/hooks/use-image-upload"
 import { getInitials, getDisplayName } from "@/lib/utils"
+import { isValidEmail } from "@/lib/validation"
 import { FormPageLayout } from "@/components/form-page-layout"
+import type { AssignableRole, ProfileRole } from "@/types/employee"
 
 export interface EmployeeFormData {
   email: string
   firstName: string
   lastName: string
   departmentId: string
-  role: string
+  /**
+   * Omitted when editing the workspace owner: their role is not editable, so
+   * the submit payload leaves it untouched instead of echoing "owner" back.
+   * Typed as AssignableRole so "owner" cannot reach a mutation at all.
+   */
+  role?: AssignableRole
   location: string
   startDate: Date | undefined
   avatarFile: File | null
@@ -38,12 +45,21 @@ export interface EmployeeFormData {
   avatarRemoved: boolean
 }
 
+const PROFILE_ROLES: readonly [ProfileRole, ...ProfileRole[]] = ["owner", "admin", "user"]
+
 const employeeFormSchema = z.object({
-  email: z.string().min(1, "Email is required").email("Please enter a valid email"),
+  // Shared with the CSV importer so both paths accept exactly the same addresses.
+  email: z
+    .string()
+    .min(1, "Email is required")
+    .refine(isValidEmail, "Please enter a valid email"),
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   departmentId: z.string().min(1, "Department is required"),
-  role: z.string().min(1, "Role is required"),
+  // "owner" is accepted as an INPUT value (an existing owner's profile loads
+  // with it and the field renders read-only), but never as an OUTPUT — see the
+  // submit handler below.
+  role: z.enum(PROFILE_ROLES, { message: "Role is required" }),
   location: z.string().min(1, "Location is required"),
   startDate: z.date().optional(),
 })
@@ -57,7 +73,7 @@ interface EmployeeFormProps {
     firstName: string
     lastName: string
     departmentId: string
-    role: string
+    role: ProfileRole
     location: string
     startDate: Date | undefined
     avatarUrl: string | undefined
@@ -188,7 +204,10 @@ export function EmployeeForm({
         firstName: data.firstName.trim(),
         lastName: data.lastName.trim(),
         departmentId: data.departmentId,
-        role: data.role,
+        // The owner's role is fixed. Send nothing instead of echoing "owner"
+        // back — the mutation types exclude it, and the RLS policy would
+        // reject the write anyway.
+        role: data.role === "owner" ? undefined : data.role,
         location: data.location,
         startDate: data.startDate,
         avatarFile,

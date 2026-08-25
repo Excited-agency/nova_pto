@@ -1,5 +1,5 @@
 import { useRef, useCallback } from "react"
-import { CloudUpload, User } from "lucide-react"
+import { CloudUpload } from "lucide-react"
 
 import { validateImageFile } from "@/lib/utils"
 import { addToast } from "@/lib/toast"

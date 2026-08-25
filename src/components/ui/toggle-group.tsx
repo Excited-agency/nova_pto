@@ -35,7 +35,9 @@ function ToggleGroup({
       )}
       {...props}
     >
-      <ToggleGroupContext.Provider value={{ variant, size }}>
+      {/* cva variant props are `T | null | undefined`, so normalise before
+          handing them to a context that guarantees a concrete value. */}
+      <ToggleGroupContext.Provider value={{ variant: variant ?? "default", size: size ?? "default" }}>
         {children}
       </ToggleGroupContext.Provider>
     </ToggleGroupPrimitive.Root>

@@ -17,6 +17,13 @@ export const timeOffCategoryKeys = {
   all: (workspaceId: string) => ["timeOffCategories", workspaceId] as const,
   list: (workspaceId: string) => ["timeOffCategories", workspaceId, "list"] as const,
   detail: (workspaceId: string, categoryId: string) => ["timeOffCategories", workspaceId, "detail", categoryId] as const,
+  /**
+   * When each category becomes usable for one employee. Depends on the
+   * employee's hire date and the category's waiting period, so it is keyed by
+   * both and invalidated whenever either changes.
+   */
+  availability: (workspaceId: string, employeeId: string) =>
+    ["timeOffCategories", workspaceId, "availability", employeeId] as const,
 }
 
 export const holidayKeys = {

@@ -6,7 +6,9 @@ import tseslint from 'typescript-eslint'
 import importX from 'eslint-plugin-import-x'
 
 export default tseslint.config(
-  { ignores: ['dist', 'supabase/functions/**'] },
+  // supabase/.temp holds generated runtime scaffolding written by `supabase
+  // start`; linting it buries real findings under ~190 errors from bundled code.
+  { ignores: ['dist', 'supabase/functions/**', 'supabase/.temp/**'] },
 
   // JavaScript files
   {

@@ -51,7 +51,7 @@ export function ImportHolidayModal({ open, onOpenChange }: ImportHolidayModalPro
   const [countryQuery, setCountryQuery] = useState("")
   const [countryOpen, setCountryOpen] = useState(false)
   const countryInputRef = useRef<HTMLInputElement>(null)
-  const countryDebounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const countryDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // Clean up debounce timer on unmount
   useEffect(() => {
