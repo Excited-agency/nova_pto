@@ -23,10 +23,14 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         {/* Background: solid + gradient/noise overlay */}
         <div aria-hidden="true" className="pointer-events-none absolute inset-0">
           <div className="absolute inset-0 bg-[#f4f4f5]" />
+          {/* JPEG, not PNG: the source was a 4096x2731 PNG whose alpha
+              channel was entirely opaque, so 3.9 MB bought nothing. */}
           <img
             alt=""
+            width={1600}
+            height={1067}
             className="absolute inset-0 size-full object-cover"
-            src="/assets/auth-right-bg.png"
+            src="/assets/auth-right-bg.jpg"
           />
         </div>
 
