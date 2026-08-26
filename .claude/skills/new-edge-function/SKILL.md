@@ -56,14 +56,23 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Verify caller is admin in their workspace
+    // Verify caller is an ACTIVE admin or owner in their workspace.
+    // Both halves matter: `owner` outranks `admin`, and a deactivated admin
+    // keeps their auth user (unlike a soft delete), so a role-only check lets
+    // them keep admin powers here after is_workspace_admin() has stopped
+    // honouring them in the database.
     const { data: callerProfile, error: profileError } = await callerClient
       .from("profiles")
-      .select("role, workspace_id")
+      .select("role, workspace_id, status")
       .eq("id", caller.id)
       .single()
 
-    if (profileError || !callerProfile || callerProfile.role !== "admin") {
+    if (
+      profileError ||
+      !callerProfile ||
+      !["admin", "owner"].includes(callerProfile.role) ||
+      callerProfile.status !== "active"
+    ) {
       return new Response(
         JSON.stringify({ error: "Only admins can perform this action" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -128,8 +137,26 @@ async function callMyFunction(payload: MyPayload): Promise<void> {
 }
 ```
 
+## Testing locally
+
+Add cases to `src/test/security/edge-function-auth.test.ts`. Two things to know
+about the local stack:
+
+- The **gateway** rejects a request with no `apikey` and no `Authorization`
+  before the function runs, returning `{"code":"UNAUTHORIZED_NO_AUTH_HEADER"}`.
+  A "no auth → 401" test therefore proves the gateway works, not your code.
+- The edge runtime **caches a warm worker** and does not reliably pick up file
+  edits. After changing a function, restart it or the mutation check will
+  silently pass against the old bundle:
+  ```bash
+  docker restart supabase_edge_runtime_<project>
+  ```
+
 ## Deploy
 
 ```bash
 supabase functions deploy <name>
 ```
+
+Note that `supabase db push` does **not** deploy functions. A fix that lives
+only in `supabase/functions/` is not in production until it is deployed.

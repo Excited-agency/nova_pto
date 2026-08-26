@@ -86,11 +86,20 @@ Deno.serve(async (req) => {
     // Verify caller is admin
     const { data: callerProfile, error: profileError } = await callerClient
       .from("profiles")
-      .select("role, workspace_id")
+      .select("role, workspace_id, status")
       .eq("id", caller.id)
       .single()
 
-    if (profileError || !callerProfile || !["admin", "owner"].includes(callerProfile.role)) {
+    // Status is load-bearing, exactly as in is_workspace_admin(): deactivating
+    // an admin leaves their auth user intact, so a role-only check here would
+    // let them keep admin powers through this endpoint after the database has
+    // already stopped honouring them.
+    if (
+      profileError ||
+      !callerProfile ||
+      !["admin", "owner"].includes(callerProfile.role) ||
+      callerProfile.status !== "active"
+    ) {
       return new Response(
         JSON.stringify({ error: "Only admins can invite employees" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }

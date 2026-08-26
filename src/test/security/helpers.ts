@@ -153,18 +153,42 @@ export async function createAuthUserWithSession(email: string) {
   return { userId, accessToken }
 }
 
+/** Shifts a YYYY-MM-DD string by whole days, in UTC. */
+function shiftIso(iso: string, days: number): string {
+  const base = new Date(`${iso}T00:00:00Z`)
+  base.setUTCDate(base.getUTCDate() + days)
+  return base.toISOString().slice(0, 10)
+}
+
+let seedWindowOffset = 0
+
+/**
+ * Seeds one pending request on dates nothing else is using.
+ *
+ * Since 20260827100000 an employee cannot hold two pending/approved requests
+ * that share a day, and most callers seed several for the same person — so a
+ * fixed window would make the second call fail for a reason unrelated to what
+ * the test is checking.
+ *
+ * The window moves in whole weeks, which matters: it keeps every range Mon–Fri,
+ * so `count_leave_days` still recomputes 5 business days and the balance
+ * assertions built on that number keep holding. The counter is bumped before
+ * the first await, so concurrent calls also get distinct windows.
+ */
 export async function seedPendingRequest(
   employeeId: string,
   workspaceId: string,
-  opts: { categoryId?: string } = {}
+  opts: { categoryId?: string; startDate?: string; endDate?: string } = {}
 ) {
+  const shift = seedWindowOffset++ * 7
+
   const { data, error } = await serviceClient.from("time_off_requests").insert({
     profile_id: employeeId,
     workspace_id: workspaceId,
     employee_name: "Test Employee",
     employee_email: "emp@test.invalid",
-    start_date: "2026-06-01",
-    end_date: "2026-06-05",
+    start_date: opts.startDate ?? shiftIso("2026-06-01", shift),
+    end_date: opts.endDate ?? shiftIso("2026-06-05", shift),
     start_period: "morning",
     end_period: "end_of_day",
     total_days: 5,

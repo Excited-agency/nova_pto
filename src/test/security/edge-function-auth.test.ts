@@ -129,6 +129,86 @@ describe.skipIf(skipIfNoServiceKey())("Edge Function auth (EF-1..11)", () => {
       )
       expect(status).toBe(400)
     })
+
+    /**
+     * Deactivating an admin leaves their auth user — and therefore their JWT —
+     * intact, unlike a soft delete. is_workspace_admin() already refuses an
+     * inactive admin, so the edge function has to refuse them too, or the
+     * endpoint becomes a way around the database's own gate.
+     */
+    it("EF-7: deactivated admin JWT → 403, and works again once reactivated", async () => {
+      await serviceClient
+        .from("profiles")
+        .update({ status: "inactive" })
+        .eq("id", admin.userId)
+
+      try {
+        const { status } = await callEdgeFunction(
+          "invite-employee",
+          {
+            email: `inactive-${Date.now()}@test.invalid`,
+            role: "user",
+            hire_date: "2026-01-01",
+            redirect_url: "http://localhost:5173",
+          },
+          admin.accessToken
+        )
+        expect(status).toBe(403)
+      } finally {
+        await serviceClient
+          .from("profiles")
+          .update({ status: "active" })
+          .eq("id", admin.userId)
+      }
+
+      // Reactivating restores access — proves the 403 came from the status
+      // check and not from something incidental about the request.
+      const { status: afterStatus, body } = await callEdgeFunction(
+        "invite-employee",
+        {
+          email: `reactivated-${Date.now()}@test.invalid`,
+          role: "user",
+          hire_date: "2026-01-01",
+          redirect_url: "http://localhost:5173",
+        },
+        admin.accessToken
+      )
+      expect(afterStatus).toBe(200)
+
+      if (body?.user_id) {
+        await deleteAuthUser(body.user_id)
+        await serviceClient.from("profiles").delete().eq("id", body.user_id)
+      }
+    })
+
+    it("EF-7b: deactivated admin cannot delete an employee either", async () => {
+      await serviceClient
+        .from("profiles")
+        .update({ status: "inactive" })
+        .eq("id", admin.userId)
+
+      try {
+        const { status } = await callEdgeFunction(
+          "delete-employee",
+          { employeeId: employee.userId, purge: false },
+          admin.accessToken
+        )
+        expect(status).toBe(403)
+
+        // The employee must still be active — nothing partial happened.
+        const { data: victim } = await serviceClient
+          .from("profiles")
+          .select("status")
+          .eq("id", employee.userId)
+          .single()
+        expect(victim?.status).toBe("active")
+      } finally {
+        await serviceClient
+          .from("profiles")
+          .update({ status: "active" })
+          .eq("id", admin.userId)
+      }
+    })
   })
 
   describe("delete-workspace edge function", () => {
