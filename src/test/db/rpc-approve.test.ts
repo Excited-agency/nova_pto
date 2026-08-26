@@ -100,7 +100,7 @@ describe.skipIf(skipIfNoServiceKey())("RPC: approve_time_off_request (DB-1..8)",
       const req = await seedPendingRequest(employee.userId, admin.workspaceId, {
         categoryId,
       })
-      // The request spans 2026-06-01 to 2026-06-05 (Mon-Fri = 5 business days)
+      // seedPendingRequest always spans a Mon-Fri week = 5 business days
       const { error } = await admin.userClient.rpc("approve_time_off_request", {
         p_request_id: req.id,
       })
@@ -210,7 +210,9 @@ describe.skipIf(skipIfNoServiceKey())("RPC: approve_time_off_request (DB-1..8)",
         .eq("category_id", categoryId)
         .single()
 
-      // 2026-06-01 (Mon) to 2026-06-07 (Sun) = 5 business days
+      // 2026-11-02 (Mon) to 2026-11-08 (Sun) = 5 business days. Deliberately
+      // outside the June band seedPendingRequest walks through, so this row
+      // cannot collide with a seeded one for the same employee.
       const { data: req, error: insErr } = await serviceClient
         .from("time_off_requests")
         .insert({
@@ -219,8 +221,8 @@ describe.skipIf(skipIfNoServiceKey())("RPC: approve_time_off_request (DB-1..8)",
           category_id: categoryId,
           employee_name: "Test Employee",
           employee_email: "emp@test.invalid",
-          start_date: "2026-06-01",
-          end_date: "2026-06-07",
+          start_date: "2026-11-02",
+          end_date: "2026-11-08",
           start_period: "morning",
           end_period: "end_of_day",
           total_days: 7,

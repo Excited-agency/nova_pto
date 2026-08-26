@@ -14,6 +14,10 @@ interface DatePickerProps {
   className?: string
   disabled?: boolean
   minDate?: Date
+  /** Grey out individual days on top of `minDate` — e.g. already booked leave. */
+  isDateDisabled?: (date: Date) => boolean
+  /** Hover text explaining why a day is unavailable. */
+  dateTooltip?: (date: Date) => string | undefined
 }
 
 const DAYS_OF_WEEK = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
@@ -50,6 +54,8 @@ function DatePicker({
   className,
   disabled = false,
   minDate,
+  isDateDisabled,
+  dateTooltip,
 }: DatePickerProps) {
   const [open, setOpen] = useState(false)
   const today = useMemo(() => new Date(), [])
@@ -161,21 +167,20 @@ function DatePicker({
         {/* Day grid */}
         <div className="grid grid-cols-7">
           {cells.map((cell, idx) => {
-            const isSelected =
-              cell.currentMonth &&
-              value != null &&
-              isSameDay(value, new Date(viewYear, viewMonth, cell.day))
+            const cellDate = new Date(viewYear, viewMonth, cell.day)
 
-            const isToday =
-              cell.currentMonth &&
-              isSameDay(today, new Date(viewYear, viewMonth, cell.day))
+            const isSelected =
+              cell.currentMonth && value != null && isSameDay(value, cellDate)
+
+            const isToday = cell.currentMonth && isSameDay(today, cellDate)
 
             const isPastDate =
-              cell.currentMonth &&
-              minDate != null &&
-              isBeforeDate(new Date(viewYear, viewMonth, cell.day), minDate)
+              cell.currentMonth && minDate != null && isBeforeDate(cellDate, minDate)
 
-            const isDayDisabled = !cell.currentMonth || isPastDate
+            const isUnavailable =
+              cell.currentMonth && isDateDisabled != null && isDateDisabled(cellDate)
+
+            const isDayDisabled = !cell.currentMonth || isPastDate || isUnavailable
 
             return (
               <CalendarDayButton
@@ -183,10 +188,12 @@ function DatePicker({
                 label={String(cell.day)}
                 selected={isSelected}
                 disabled={isDayDisabled}
+                title={cell.currentMonth ? dateTooltip?.(cellDate) : undefined}
                 onClick={() => !isDayDisabled && handleDayClick(cell.day)}
                 className={cn(
                   !cell.currentMonth && "opacity-30",
-                  isToday && !isSelected && "bg-accent font-medium"
+                  isToday && !isSelected && "bg-accent font-medium",
+                  isUnavailable && "line-through"
                 )}
               />
             )

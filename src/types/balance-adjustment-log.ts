@@ -10,6 +10,12 @@ export type BalanceAdjustmentReason =
   | "carryover_expired"
   /** One-off replay of the accrual schedule; explains a jump in one row. */
   | "recalculated"
+  /**
+   * Days returned because the request that spent them turned out to overlap an
+   * earlier one and was auto-rejected. Written only by
+   * resolve_overlapping_requests() (migration 20260827100000).
+   */
+  | "overlap_resolved"
 
 export interface BalanceAdjustmentLog {
   id: string

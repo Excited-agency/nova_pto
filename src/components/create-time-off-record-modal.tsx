@@ -29,9 +29,22 @@ import {
   useActiveEmployees,
   useEmployeeBalances,
   useCreateTimeOffRecordMutation,
+  useTimeOffRequests,
 } from "@/hooks/use-time-off-requests"
 import { addToast } from "@/lib/toast"
-import { calculateDays, formatDays, formatLocalDate, isSameDay } from "@/lib/date-utils"
+import {
+  calculateDays,
+  formatDays,
+  formatLocalDate,
+  formatPeriod,
+  isSameDay,
+} from "@/lib/date-utils"
+import {
+  findOverlap,
+  isDateOccupied,
+  suggestFreeRange,
+  toOccupiedRanges,
+} from "@/lib/request-overlap"
 import { getBalanceText } from "@/lib/balance-utils"
 import type { TimeOffCategory } from "@/types/time-off-category"
 import type { EmployeeBalance } from "@/types/employee-balance"
@@ -142,6 +155,18 @@ export function CreateTimeOffRecordModal({
     [balances]
   )
 
+  // Days the selected employee is already booked for. The workspace list is
+  // already in cache for both pages that host this modal, so no extra fetch —
+  // and RLS narrows it to their own rows when a non-admin self-records.
+  const { data: workspaceRequests = [] } = useTimeOffRequests()
+  const occupiedRanges = useMemo(
+    () =>
+      employeeId
+        ? toOccupiedRanges(workspaceRequests.filter((r) => r.profile_id === employeeId))
+        : [],
+    [workspaceRequests, employeeId]
+  )
+
   // Filter to active categories only
   const activeCategories = useMemo(
     () => categories.filter((c) => c.is_active),
@@ -206,14 +231,42 @@ export function CreateTimeOffRecordModal({
     totalDays > selectedBalance.remaining_days
   const noBalance =
     hasRequiredFields && !balancesLoading && selectedBalance == null && !isUnlimited
+
+  // Same rule as the employee form, and no admin override: a person cannot be
+  // away twice on the same day regardless of who files the record.
+  const overlapConflict =
+    startDate != null && endDate != null
+      ? findOverlap(occupiedRanges, startDate, endDate)
+      : undefined
+
+  const freeSuggestion =
+    overlapConflict != null && startDate != null && endDate != null
+      ? suggestFreeRange(occupiedRanges, startDate, endDate)
+      : null
+
   const isValid =
     hasRequiredFields &&
     totalDays != null &&
     totalDays > 0 &&
     holidaysReady &&
+    !overlapConflict &&
     !insufficientBalance &&
     !noBalance &&
     !balancesLoading
+
+  const isDayBooked = (date: Date) => isDateOccupied(occupiedRanges, date) != null
+
+  const bookedReason = (date: Date) => {
+    const range = isDateOccupied(occupiedRanges, date)
+    if (!range) return undefined
+    return `Already booked: ${range.label} (${range.status})`
+  }
+
+  function applyFreeSuggestion() {
+    if (!freeSuggestion) return
+    setValue("startDate", freeSuggestion.start)
+    setValue("endDate", freeSuggestion.end)
+  }
 
   const onSubmit = handleSubmit((data) => {
     if (!isValid || !workspace) return
@@ -325,6 +378,8 @@ export function CreateTimeOffRecordModal({
                       value={field.value}
                       onChange={field.onChange}
                       placeholder="Pick a date"
+                      isDateDisabled={isDayBooked}
+                      dateTooltip={bookedReason}
                     />
                   )}
                 />
@@ -359,6 +414,8 @@ export function CreateTimeOffRecordModal({
                       value={field.value}
                       onChange={field.onChange}
                       placeholder="Pick a date"
+                      isDateDisabled={isDayBooked}
+                      dateTooltip={bookedReason}
                     />
                   )}
                 />
@@ -405,6 +462,27 @@ export function CreateTimeOffRecordModal({
                   ? "Couldn't load the holiday calendar, so the day count may be wrong. Try reopening this form."
                   : "Checking the holiday calendar…"}
               </p>
+            )}
+            {overlapConflict && (
+              <div className="flex flex-col items-start gap-1">
+                <p className="text-sm leading-5 tracking-tight text-destructive">
+                  Already off {formatPeriod(
+                    formatLocalDate(overlapConflict.start),
+                    formatLocalDate(overlapConflict.end)
+                  )}{" "}
+                  — {overlapConflict.label} ({overlapConflict.status})
+                </p>
+                {freeSuggestion && (
+                  <Button variant="ghost" size="sm" onClick={applyFreeSuggestion}>
+                    Use{" "}
+                    {formatPeriod(
+                      formatLocalDate(freeSuggestion.start),
+                      formatLocalDate(freeSuggestion.end)
+                    )}{" "}
+                    instead
+                  </Button>
+                )}
+              </div>
             )}
             {/* Insufficient balance warning */}
             {insufficientBalance && (

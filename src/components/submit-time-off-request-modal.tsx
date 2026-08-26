@@ -24,17 +24,28 @@ import {
 import { useAuth } from "@/hooks/use-auth"
 import { useHolidays } from "@/hooks/use-holidays"
 import { useTimeOffCategories, useCategoryAvailability } from "@/hooks/use-time-off-categories"
-import { useEmployeeBalances, useSubmitTimeOffRequestMutation } from "@/hooks/use-time-off-requests"
+import {
+  useEmployeeBalances,
+  useMyTimeOffRequests,
+  useSubmitTimeOffRequestMutation,
+} from "@/hooks/use-time-off-requests"
 import { addToast } from "@/lib/toast"
 import {
   calculateDays,
   formatDate,
   formatDays,
   formatLocalDate,
+  formatPeriod,
   isBeforeDate,
   isSameDay,
   parseDateLocal,
 } from "@/lib/date-utils"
+import {
+  findOverlap,
+  isDateOccupied,
+  suggestFreeRange,
+  toOccupiedRanges,
+} from "@/lib/request-overlap"
 import { getBalanceText } from "@/lib/balance-utils"
 
 interface SubmitTimeOffRequestModalProps {
@@ -109,6 +120,11 @@ export function SubmitTimeOffRequestModal({
 
   const { data: balances = [] } = useEmployeeBalances(profile?.id)
   const { data: availability = [] } = useCategoryAvailability(profile?.id)
+  const { data: myRequests = [] } = useMyTimeOffRequests()
+
+  // Days this employee is already booked for. Rejected and withdrawn requests
+  // release their dates, so only pending and approved ones count.
+  const occupiedRanges = useMemo(() => toOccupiedRanges(myRequests), [myRequests])
 
   const balanceMap = useMemo(
     () => new Map(balances.map((b) => [b.category_id, b])),
@@ -194,13 +210,40 @@ export function SubmitTimeOffRequestModal({
     startDate != null &&
     isBeforeDate(startDate, parseDateLocal(availableFrom))
 
+  // Greying out days in the picker is not enough on its own: both endpoints
+  // can be free while a booked day sits between them.
+  const overlapConflict =
+    startDate != null && endDate != null
+      ? findOverlap(occupiedRanges, startDate, endDate)
+      : undefined
+
+  const freeSuggestion =
+    overlapConflict != null && startDate != null && endDate != null
+      ? suggestFreeRange(occupiedRanges, startDate, endDate)
+      : null
+
   const isValid =
     !!categoryId && !!startDate && !!endDate &&
     totalDays != null && totalDays > 0 &&
     holidaysReady &&
     !hasPastDates &&
     !beforeAvailable &&
+    !overlapConflict &&
     !insufficientBalance
+
+  const isDayBooked = (date: Date) => isDateOccupied(occupiedRanges, date) != null
+
+  const bookedReason = (date: Date) => {
+    const range = isDateOccupied(occupiedRanges, date)
+    if (!range) return undefined
+    return `Already booked: ${range.label} (${range.status})`
+  }
+
+  function applyFreeSuggestion() {
+    if (!freeSuggestion) return
+    setValue("startDate", freeSuggestion.start)
+    setValue("endDate", freeSuggestion.end)
+  }
 
   const onSubmit = handleSubmit((data) => {
     if (!isValid || !profile || !workspace || totalDays == null) return
@@ -294,6 +337,8 @@ export function SubmitTimeOffRequestModal({
                       onChange={field.onChange}
                       placeholder="Pick a date"
                       minDate={minDate}
+                      isDateDisabled={isDayBooked}
+                      dateTooltip={bookedReason}
                     />
                   )}
                 />
@@ -329,6 +374,8 @@ export function SubmitTimeOffRequestModal({
                       onChange={field.onChange}
                       placeholder="Pick a date"
                       minDate={minDate}
+                      isDateDisabled={isDayBooked}
+                      dateTooltip={bookedReason}
                     />
                   )}
                 />
@@ -378,6 +425,27 @@ export function SubmitTimeOffRequestModal({
                 This category isn't available to you until{" "}
                 {formatDate(availableFrom)} — pick a later start date
               </p>
+            )}
+            {overlapConflict && (
+              <div className="flex flex-col items-start gap-1">
+                <p className="text-sm leading-5 tracking-tight text-[var(--color-error)]">
+                  You're already off {formatPeriod(
+                    formatLocalDate(overlapConflict.start),
+                    formatLocalDate(overlapConflict.end)
+                  )}{" "}
+                  — {overlapConflict.label} ({overlapConflict.status})
+                </p>
+                {freeSuggestion && (
+                  <Button variant="ghost" size="sm" onClick={applyFreeSuggestion}>
+                    Take{" "}
+                    {formatPeriod(
+                      formatLocalDate(freeSuggestion.start),
+                      formatLocalDate(freeSuggestion.end)
+                    )}{" "}
+                    instead
+                  </Button>
+                )}
+              </div>
             )}
             {insufficientBalance && (
               <p className="text-sm leading-5 tracking-tight text-[var(--color-warning)]">
