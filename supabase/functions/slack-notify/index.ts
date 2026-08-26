@@ -285,7 +285,10 @@ Deno.serve(async (req) => {
         .from("profiles")
         .select("id")
         .eq("workspace_id", workspaceId)
-        .eq("role", "admin")
+        // The owner is an admin with extra powers. Filtering on "admin"
+        // alone meant a workspace whose only admin is the founder -- the
+        // default after founder-flow -- had no recipients at all.
+        .in("role", ["admin", "owner"])
         .eq("status", "active")
 
       if (!admins || admins.length === 0) {
@@ -665,7 +668,10 @@ Deno.serve(async (req) => {
         .from("profiles")
         .select("id")
         .eq("workspace_id", workspaceId)
-        .eq("role", "admin")
+        // The owner is an admin with extra powers. Filtering on "admin"
+        // alone meant a workspace whose only admin is the founder -- the
+        // default after founder-flow -- had no recipients at all.
+        .in("role", ["admin", "owner"])
         .eq("status", "active")
 
       if (admins && admins.length > 0) {

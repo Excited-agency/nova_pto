@@ -103,7 +103,8 @@ Deno.serve(async (req) => {
         .from("profiles")
         .select("id, workspace_id, role")
         .ilike("email", installerEmail)
-        .eq("role", "admin")
+        // Includes the owner: they are the likeliest installer of all.
+        .in("role", ["admin", "owner"])
         .eq("status", "active")
         .limit(1)
         .single()
