@@ -81,9 +81,12 @@ export const RequestRow = memo(function RequestRow({
       <div className="relative flex items-center justify-end gap-2 w-24 h-[72px] px-3 py-2">
         {req.status === "pending" && (
           <>
+            {/* Icon-only, so the label has to be explicit: without it these
+                buttons are unreachable by screen reader and by name. */}
             <Button
               variant="outline"
               size="icon-sm"
+              aria-label={`Approve request from ${req.employee_name}`}
               onClick={(e) => { e.stopPropagation(); onApprove(req) }}
               className="text-[var(--color-success)] hover:bg-[var(--color-success-light)] hover:text-[var(--color-success)]"
             >
@@ -92,6 +95,7 @@ export const RequestRow = memo(function RequestRow({
             <Button
               variant="outline"
               size="icon-sm"
+              aria-label={`Reject request from ${req.employee_name}`}
               onClick={(e) => { e.stopPropagation(); onReject(req) }}
               className="text-[var(--color-error)] hover:bg-[var(--color-error-light)] hover:text-[var(--color-error)]"
             >

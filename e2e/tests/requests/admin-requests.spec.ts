@@ -34,47 +34,67 @@ test.describe("Admin request management", () => {
     await expect(page).not.toHaveURL(/\/access-restricted/)
   })
 
-  test("admin can approve a pending request", async ({ page }) => {
+  test("admin can approve a pending request, and the balance is deducted", async ({ page }) => {
+    // The row's buttons are icon-only; their accessible name carries the
+    // employee name, so a marker makes exactly one button addressable.
+    const marker = `APPROVE-${Date.now()}`
     const reqId = await createPendingRequest(
       employeeUser.userId,
       adminUser.workspaceId,
       categoryId,
       {
-        start_date: "2026-09-01",
+        start_date: "2026-09-01", // Tuesday — one business day
         end_date: "2026-09-01",
         total_days: 1,
+        employee_name: marker,
       }
     )
 
-    await seedSession(page, adminUser)
-    await page.goto("/requests")
-    await page.waitForLoadState("networkidle")
+    try {
+      await seedSession(page, adminUser)
+      await page.goto("/requests")
 
-    // Click first approve button
-    const approveBtn = page.getByRole("button", { name: /approve/i }).first()
-    if ((await approveBtn.count()) > 0) {
-      await approveBtn.click()
-      await page.waitForLoadState("networkidle")
+      await page.getByRole("button", { name: `Approve request from ${marker}` }).click()
 
-      // Verify in DB
-      const { data } = await adminClient
-        .from("time_off_requests")
-        .select("status")
-        .eq("id", reqId)
+      const dialog = page.getByRole("dialog")
+      await expect(dialog).toBeVisible()
+      await dialog.getByRole("button", { name: "Approve request" }).click()
+
+      await expect
+        .poll(
+          async () => {
+            const { data } = await adminClient
+              .from("time_off_requests")
+              .select("status")
+              .eq("id", reqId)
+              .single()
+            return data?.status
+          },
+          { timeout: 10_000 }
+        )
+        .toBe("approved")
+
+      // Approval spends balance in the same transaction, so 20 - 1 = 19.
+      const { data: balance } = await adminClient
+        .from("employee_balances")
+        .select("remaining_days")
+        .eq("employee_id", employeeUser.userId)
+        .eq("category_id", categoryId)
         .single()
-      expect(data?.status).toBe("approved")
+      expect(balance?.remaining_days).toBe(19)
+    } finally {
+      await adminClient.from("time_off_requests").delete().eq("id", reqId)
+      await adminClient
+        .from("employee_balances")
+        .update({ remaining_days: 20 })
+        .eq("employee_id", employeeUser.userId)
+        .eq("category_id", categoryId)
     }
-
-    await adminClient.from("time_off_requests").delete().eq("id", reqId)
-    // Restore balance
-    await adminClient
-      .from("employee_balances")
-      .update({ remaining_days: 20 })
-      .eq("employee_id", employeeUser.userId)
-      .eq("category_id", categoryId)
   })
 
-  test("admin can reject a pending request with a reason", async ({ page }) => {
+  test("admin can reject a pending request, and the reason is stored", async ({ page }) => {
+    const marker = `REJECT-${Date.now()}`
+    const reason = "Insufficient coverage"
     const reqId = await createPendingRequest(
       employeeUser.userId,
       adminUser.workspaceId,
@@ -83,34 +103,43 @@ test.describe("Admin request management", () => {
         start_date: "2026-09-02",
         end_date: "2026-09-02",
         total_days: 1,
+        employee_name: marker,
       }
     )
 
-    await seedSession(page, adminUser)
-    await page.goto("/requests")
-    await page.waitForLoadState("networkidle")
+    try {
+      await seedSession(page, adminUser)
+      await page.goto("/requests")
 
-    const rejectBtn = page.getByRole("button", { name: /reject/i }).first()
-    if ((await rejectBtn.count()) > 0) {
-      await rejectBtn.click()
+      await page.getByRole("button", { name: `Reject request from ${marker}` }).click()
 
-      // Fill rejection reason
-      const reasonField = page.getByRole("textbox", { name: /reason/i })
-      if ((await reasonField.count()) > 0) {
-        await reasonField.fill("Insufficient coverage")
-        await page.getByRole("button", { name: /confirm|submit/i }).last().click()
-        await page.waitForLoadState("networkidle")
+      const dialog = page.getByRole("dialog")
+      await expect(dialog).toBeVisible()
 
-        const { data } = await adminClient
-          .from("time_off_requests")
-          .select("status, rejection_reason")
-          .eq("id", reqId)
-          .single()
-        expect(data?.status).toBe("rejected")
-      }
+      // Rejecting without a reason must not be possible.
+      const confirm = dialog.getByRole("button", { name: "Reject request" })
+      await expect(confirm).toBeDisabled()
+
+      await dialog.getByPlaceholder("Type reason here").fill(reason)
+      await expect(confirm).toBeEnabled()
+      await confirm.click()
+
+      await expect
+        .poll(
+          async () => {
+            const { data } = await adminClient
+              .from("time_off_requests")
+              .select("status, rejection_reason")
+              .eq("id", reqId)
+              .single()
+            return data
+          },
+          { timeout: 10_000 }
+        )
+        .toMatchObject({ status: "rejected", rejection_reason: reason })
+    } finally {
+      await adminClient.from("time_off_requests").delete().eq("id", reqId)
     }
-
-    await adminClient.from("time_off_requests").delete().eq("id", reqId)
   })
 
   test("admin sees all workspace requests (not just own)", async ({ page }) => {
@@ -127,17 +156,15 @@ test.describe("Admin request management", () => {
       }
     )
 
-    await seedSession(page, adminUser)
-    await page.goto("/requests")
-    await page.waitForLoadState("networkidle")
-    await page.waitForTimeout(2000)
+    try {
+      await seedSession(page, adminUser)
+      await page.goto("/requests")
 
-    // Admin should see the request with UNIQUE_MARKER_EMP name
-    // Requests page uses div rows (not tr/tbody), look for employee name text
-    const markerText = page.getByText("UNIQUE_MARKER_EMP")
-    const count = await markerText.count()
-    expect(count).toBeGreaterThanOrEqual(1)
-
-    await adminClient.from("time_off_requests").delete().eq("id", reqId)
+      // A web-first assertion retries until the row renders, so the page needs
+      // no fixed wait — and a genuine failure is reported instead of a count.
+      await expect(page.getByText("UNIQUE_MARKER_EMP").first()).toBeVisible()
+    } finally {
+      await adminClient.from("time_off_requests").delete().eq("id", reqId)
+    }
   })
 })

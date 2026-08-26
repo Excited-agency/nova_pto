@@ -1,347 +1,368 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code when working in this repository.
 
 ## Commands
 
 ```bash
-npm run dev             # Start dev server (Vite HMR)
-npm run build           # Production build
-npm run lint            # ESLint
-npm run preview         # Preview production build
+npm run dev            # Vite dev server (HMR)
+npm run build          # Production build
+npm run typecheck      # tsc -b
+npm run lint           # ESLint
 
-# Unit / integration / security tests (Vitest + jsdom)
-npm test                # Run all Vitest tests once
-npm run test:watch      # Vitest in watch mode
-npm run test:coverage   # Coverage report (v8)
-npm run test:security   # Only src/test/security/
-npm run test:db         # Only src/test/db/
+npm test               # All Vitest tests once
+npm run test:watch     # Watch mode
+npm run test:ui        # Vitest UI
+npm run test:coverage  # Coverage (v8)
+npm run test:security  # Only src/test/security/   — needs local Supabase
+npm run test:db        # Only src/test/db/         — needs local Supabase
 
-# E2E tests (Playwright, Chromium)
-npm run test:e2e        # Headless
-npm run test:e2e:ui     # Playwright UI mode
-npm run test:e2e:headed # Headed (visible browser)
+npm run test:e2e       # Playwright, headless
+npm run test:e2e:ui    # Playwright UI mode
+npm run test:all       # Vitest + Playwright
 
-npm run test:all        # Vitest + Playwright
-
-# Run a single Vitest test file
-npx vitest run src/test/unit/your-file.test.ts
-
-# Run a single Playwright spec
-npx playwright test e2e/your-spec.spec.ts
+npx vitest run src/test/unit/your-file.test.ts   # single Vitest file
+npx playwright test e2e/tests/your-spec.spec.ts  # single Playwright spec
 ```
 
-## Testing
+Local stack: `supabase start`, `supabase db reset` (all migrations from scratch),
+`supabase db push` (apply pending to the linked project).
 
-**Unit/integration tests** live in `src/test/` and are run with Vitest (`vitest.config.ts`).  
-Setup file `src/test/setup.ts` auto-mocks `@/lib/supabase` globally — individual tests override as needed.
+Two traps that make a run lie to you:
 
-| Folder | What's inside |
-|---|---|
-| `src/test/unit/` | Pure logic (lib utils, hooks) |
-| `src/test/integration/` | Component-level tests with MSW or mocked services |
-| `src/test/security/` | RLS / privilege-escalation tests hitting a real local Supabase |
-| `src/test/db/` | DB constraint, cascade-delete, and RPC tests |
+- The Edge Functions runtime **caches a warm worker** and does not reliably pick
+  up file edits, so a mutation check can pass against the old bundle. Restart it
+  after changing a function: `docker restart supabase_edge_runtime_Nova_pto`.
+  Cheapest way to detect it: change an error message and see whether the
+  response changes.
+- After bumping `@playwright/test`, run `npx playwright install chromium`.
+  Otherwise every spec fails in 0 ms with "Executable doesn't exist", which
+  looks like a code regression and is not one.
 
-Security and DB tests require a running local Supabase stack (`supabase start`) and read credentials from `.env.test` (`TEST_SUPABASE_*` vars, including `TEST_SUPABASE_SERVICE_ROLE_KEY`).
-
-**E2E tests** live in `e2e/` and use Playwright (`playwright.config.ts`). The dev server starts automatically. Credentials come from `.env.test` (`PLAYWRIGHT_BASE_URL` optional override). Page-object classes are in `e2e/page-objects/`. Reusable test helpers live in `e2e/fixtures/`:
-- `e2e/fixtures/auth.ts` — `createTestUser()`, `seedSession()`, `cleanupTestUser()`, `createEphemeralAuthUser()`, `adminClient` (service-role Supabase client)
-- `e2e/fixtures/test-data.ts` — `createCategory()`, `createBalance()`, `createPendingRequest()`, `addEmployeeToWorkspace()`
+CI (`.github/workflows/test.yml`) runs four jobs: `static`
+(typecheck + lint + build), unit/integration with coverage, security + DB against
+a real local stack, and E2E. All four must pass — `static` is the only one that
+catches a type error or a broken build.
 
 ## Environment
 
-Requires a `.env` file with:
-```
-VITE_SUPABASE_URL=...
-VITE_SUPABASE_ANON_KEY=...
-VITE_SITE_URL=...          # Base URL for magic link redirects; falls back to window.location.origin
-```
+`.env` needs `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SITE_URL`
+(base URL for magic-link redirects; falls back to `window.location.origin`).
+`.env.test` adds `TEST_SUPABASE_URL`, `TEST_SUPABASE_ANON_KEY`,
+`TEST_SUPABASE_SERVICE_ROLE_KEY` and optional `PLAYWRIGHT_BASE_URL`.
+
+## Stack
+
+React 19 + TypeScript + Vite + Tailwind v4 + Supabase + TanStack React Query.
+Beyond the core: `react-hook-form` + `zod`, `@dnd-kit/*`, `xlsx`, `papaparse`,
+`react-highlight-words`, `lucide-react`, unified `radix-ui`.
+
+Nova PTO is a multi-tenant leave-management SaaS. Auth is Supabase magic link
+(OTP by email, no passwords).
+
+---
 
 ## Architecture
 
-**Stack:** React 19 + TypeScript + Vite + Tailwind CSS v4 + Supabase + TanStack React Query
+### Services → Hooks → Components
 
-**App:** Nova PTO — a leave management SaaS. Auth uses Supabase magic link (OTP via email, no passwords).
+Pages never fetch, and no component imports a service directly. Data access
+(`supabase.from`, `supabase.rpc`) belongs in `src/lib/*-service.ts` — auth pages
+included, which go through `auth-service.ts`.
 
-**Key dependencies beyond core stack:** `react-hook-form` + `zod` (forms/validation), `@dnd-kit/*` (drag-and-drop), `xlsx` (Excel export), `papaparse` (CSV parsing), `react-highlight-words` (search result highlighting), `lucide-react` (icons), `radix-ui` (unified Radix package).
+Two categories sit outside that and are the only legitimate exceptions:
+
+| Where | What | Why |
+|---|---|---|
+| `founder-flow.ts`, `default-categories.ts` | `supabase.from(...)` writes | One-shot provisioning at first sign-in, not a queryable domain |
+| `auth-context.tsx`, `App.tsx` | `supabase.auth.*` only | Session lifecycle and `onAuthStateChange` subscriptions — a service cannot own a subscription's lifetime |
+
+Anything else calling `supabase.*` is a layering violation. Code examples:
+`project-conventions` skill.
+
+### The server owns the rules
+
+Request writes go through RPCs, not table writes. Balances are written only by
+the balance-writing RPCs. Invariants — no overlapping leave, waiting periods,
+workspace ownership of every ID — live in triggers, constraints and RPC bodies.
+Client-side checks exist to give a good message before Submit; they are never
+the enforcement point, and deleting one must not make an invalid write possible.
 
 ### Key flows
 
-- `src/App.tsx` — router root. All routes wrapped in `AuthProvider`. `/` layout route is behind `ProtectedRoute`. App pages use nested routes via `<Outlet />` in `DashboardLayout`.
-- **Auth sequence**: `/login` (enter email) → Supabase sends OTP → `/check-email` (enter 6-digit code) → verify → redirect to `/requests`.
-- **Role-based routing**: The `requests` route renders `RequestsPage` for admins and `EmployeeRequestsPage` for non-admins — both lazy-loaded, switch decided inside the route element.
-- `src/contexts/auth-context.tsx` — central auth state. Exposes `user`, `session`, `workspace`, `profile`, `loading`, `authError`, `retryAuth`, `signOut`, `refreshWorkspace`, `refreshProfile`. On first sign-in (`SIGNED_IN` event), runs `runFounderFlow` to auto-provision a workspace and profile for new users.
-- `src/contexts/navigation-guard-context.tsx` — provides `registerGuard`/`unregisterGuard` for pages with unsaved changes (e.g. Settings) to block navigation until confirmed.
-- `src/lib/founder-flow.ts` — first-time user setup: creates a `workspaces` row and a `profiles` row (role: `admin`) in Supabase. Idempotent — skips if profile already exists.
-- `src/lib/supabase.ts` — single shared Supabase client.
+- `src/App.tsx` — router root. Everything inside `AuthProvider`; `/` is behind
+  `ProtectedRoute` and renders `DashboardLayout` with nested `<Outlet />` pages.
+  All pages lazy-loaded.
+- **Auth**: `/login` → OTP email → `/check-email` (6-digit code) → `/requests`.
+- **Role-resolved routes**: `requests` renders `RequestsPage` (admin) or
+  `EmployeeRequestsPage` (user); `settings` renders `SettingsPage` (admin) or
+  `UserSettingsPage` (user). Decided inside the route element, not by path.
+- `src/contexts/auth-context.tsx` — exposes `user`, `session`, `workspace`,
+  `profile`, `loading`, `authError`, `retryAuth`, `signOut`, `refreshWorkspace`,
+  `refreshProfile`. On `SIGNED_IN` for a new user it runs `runFounderFlow`.
+- `src/contexts/navigation-guard-context.tsx` — `registerGuard`/`unregisterGuard`
+  for pages with unsaved changes (Settings).
+- `src/lib/founder-flow.ts` — idempotent first-time provisioning: workspace,
+  `owner` profile, default departments and categories.
 
-### Data flow
+### Roles
 
-Pages do **not** fetch data directly. The layered pattern is: **Services → Hooks → Components**. See `project-conventions` skill for code examples and enforcement rules.
+| Role | Can |
+|---|---|
+| `owner` | Everything an admin can, plus delete the workspace. One per workspace. Cannot be deactivated or deleted by an admin. |
+| `admin` | Employees, categories, requests, settings |
+| `user` | Submit / view / withdraw own requests; edit own name + avatar |
 
-### Supabase schema
+**Admin checks must accept both `admin` and `owner`** —
+`profile?.role === "admin" || profile?.role === "owner"`. Checking only
+`"admin"` locks the owner out. The DB equivalent is `is_workspace_admin()`,
+which *also* requires `status = 'active'`; Edge Functions must check status too,
+because deactivating an admin leaves their auth user and JWT working.
 
-- `workspaces` — `id`, `name`, `logo_url?`, `owner_id` (unique), `created_at`
-- `profiles` — `id` (= auth user id), `workspace_id`, `role` (`"owner" | "admin" | "user"`), `email`, `first_name?`, `last_name?`, `avatar_url?`, `status` (`EmployeeStatus`), `department_id?`, `location?`, `hire_date?`, `created_at` (note: `full_name` was split into `first_name` + `last_name` via migration)
-- `departments` — `id`, `workspace_id`, `name`, `created_at`
-- `time_off_requests` — `id`, `profile_id`, `workspace_id`, `category_id?`, `employee_name`, `employee_email`, `employee_avatar_url?`, `start_date`, `end_date`, `start_period`, `end_period`, `total_days`, `request_type`, `status`, `comment?`, `rejection_reason?`, `reviewed_by?` (profile id of the admin who approved/rejected), `reviewed_at?`, `created_at`, `updated_at`
-- `time_off_categories` — `id`, `workspace_id`, `name`, `emoji?`, `colour`, `is_active`, `leave_type` (`"paid" | "unpaid"`), `accrual_method`, `amount_value`, `granting_frequency`, `new_hire_rule`, `waiting_period_value/unit`, `carryover_limit_enabled`, `carryover_max_days`, `sort_order`, `created_at`, `updated_at`
-- `holidays` — `id`, `workspace_id`, `name`, `date`, `is_custom`, `country_code?`, `year?`, `created_at`, `updated_at`
-- `employee_balances` — `id`, `employee_id`, `category_id`, `workspace_id`, `remaining_days`, `created_at`, `updated_at`
-- `balance_adjustment_log` — `id`, `employee_id`, `category_id`, `workspace_id`, `delta`, `balance_before`, `balance_after`, `reason` (`"manual_adjustment" | "request_approved" | "record_created"`), `request_id?`, `adjusted_by?`, `created_at`. Populated by the three balance-writing RPCs; never written directly from the client.
-- `slack_installations` — Slack OAuth install data per workspace (`workspace_id`, `slack_team_id`, `bot_token`, etc.)
-- `slack_user_mappings` — maps Nova `profile_id` to Slack user IDs
-- `slack_interaction_log` — idempotency tracking for Slack button interactions
-- `slack_dm_messages` — per-admin DM channel/message references for updating Slack notifications in-place
-
-Migrations live in `supabase/migrations/`. Run `supabase db push` to apply them to a local/remote instance.
-
-Key DB-side side-effects worth knowing:
-- `sync_profile_to_requests` trigger — profile name/avatar changes propagate to the denormalised columns on `time_off_requests`
-- `after_category_insert/update_seed_balances` triggers — creating a category or toggling it active seeds `employee_balances` rows for all active employees
-- `auto_reject_pending_on_employee_delete` trigger — soft-deleting an employee auto-rejects their pending requests
-
-### App routes
-
-Defined in `src/App.tsx`. All page components are lazy-loaded via `React.lazy` + `Suspense`. `/` redirects to `/requests`. Currently implemented pages:
-- `/auth/callback` — OAuth/magic link callback handler
-- `/requests` — `RequestsPage` (admin) or `EmployeeRequestsPage` (non-admin), role-resolved at render
-- `/employees` — `EmployeesPage` (tabs/search/table, live Supabase data, status filtering, action dropdowns)
-- `/employees/new` — `AddEmployeePage` (uses shared `employee-form.tsx`; calls `inviteEmployee` from employee-service)
-- `/employees/:id` — `EmployeeDetailsPage` (individual employee details view)
-- `/employees/:id/edit` — `EditEmployeePage` (uses shared `employee-form.tsx`; loads via `fetchEmployee`, saves via `updateEmployee`)
-- `/employees/import` — `ImportPreviewPage` (CSV bulk employee import with header mapping and validation)
-- `/settings` — role-resolved: `SettingsPage` (admin — workspace name/logo, profile name/avatar, departments CRUD, dirty-state guard) or `UserSettingsPage` (non-admin — employee-only profile editor for first/last name + avatar)
-- `/check-email` — `CheckEmailPage` (OTP 6-digit code entry, part of the magic-link auth sequence)
-- `/calendar` — `CalendarPage` (month grid of time-off, category/status filters, month navigation, report download)
-- `/time-off-setup` — `TimeOffSetupPage` (categories CRUD with drag-and-drop reordering via `@dnd-kit`)
-- `/time-off-setup/new` — `AddCategoryPage` (uses shared `category-form.tsx`)
-- `/time-off-setup/:id/edit` — `EditCategoryPage` (uses shared `category-form.tsx`)
-- `/access-restricted` — shown when user lacks permissions
-
-### Types
-
-- `src/types/time-off-request.ts` — `TimeOffRequest`, `TimeOffStatus` (`"pending" | "approved" | "rejected" | "withdrawn"`), `TimeOffType` (`"vacation" | "sick_leave" | "personal" | "bereavement" | "other"`), `StartPeriod`, `EndPeriod` (half-day support)
-- `src/types/employee.ts` — `EmployeeStatus` (`"active" | "inactive" | "deleted"`)
-- `src/types/department.ts` — `Department` interface
-- `src/types/time-off-category.ts` — `TimeOffCategory`, `LeaveType`, `AccrualMethod`, `GrantingFrequency`, `NewHireRule`, `PeriodUnit`
-- `src/types/holiday.ts` — `Holiday`, `NagerHoliday` (external API shape), `CreateHolidayData`
-- `src/types/employee-balance.ts` — `EmployeeBalance` interface
-- `src/types/balance-adjustment-log.ts` — `BalanceAdjustmentLog`, `BalanceAdjustmentReason`
-- `src/types/csv-import.ts` — `SchemaField`, `HeaderMapping`, `CsvEmployeeRow`, `RowValidation`, `ImportRowResult`, `ImportStep`
-
-### Services
-
-- `src/lib/employee-service.ts` — `fetchEmployees`, `fetchEmployeeCounts`, `fetchEmployee`, `updateEmployee`, `updateEmployeeStatus`, `bulkUpdateEmployeeStatus`, `inviteEmployee` (calls the `invite-employee` Edge Function), `deleteEmployee` / `purgeEmployee` (call the `delete-employee` Edge Function with `purge: false / true`)
-- `src/lib/settings-service.ts` — `fetchDepartments`, `createDepartment`, `updateDepartment`, `deleteDepartment`, `updateWorkspace`, `updateProfile`, `uploadImage`, `removeImage`
-- `src/lib/time-off-request-service.ts` — fetch/create/approve/reject time-off requests; `fetchEmployeeBalance`, `fetchEmployeeBalances`, `fetchBalanceAdjustmentLog`. Reads from the `time_off_requests_safe` security view (masks `comment` and `rejection_reason` for non-owners; exposes `reviewed_by`/`reviewed_at`). Approval/rejection go through RPCs: `approve_time_off_request`, `reject_time_off_request` (both stamp `reviewed_by`/`reviewed_at` and insert a `balance_adjustment_log` row). Admin record creation uses `create_time_off_record` RPC (calculates business days, deducts balance, logs adjustment in one transaction). Balance editing uses `bulk_update_employee_balances` RPC (also inserts into `balance_adjustment_log`).
-- `src/lib/time-off-category-service.ts` — category CRUD + `updateCategorySortOrder`
-- `src/lib/holiday-service.ts` — holiday import and management
-- `src/lib/report-service.ts` — report data fetching; `src/lib/generate-report.ts` — Excel export via `xlsx`
-- `src/lib/founder-flow.ts` — first-time workspace + profile provisioning (idempotent)
-- `src/lib/toast.ts` — pub-sub toast notification helper (`addToast`, `removeToast`, `subscribe`, `getSnapshot`)
-- `src/lib/query-keys.ts` — TanStack Query key factory (centralized cache key definitions)
-- `src/lib/constants.ts` — `IMAGE_ALLOWED_TYPES`, `IMAGE_MAX_SIZE` (5 MB), `EMPLOYEES_PAGE_SIZE` (100), `TIME_OFF_REQUESTS_LIMIT` (1000), `BALANCE_LOG_LIMIT` (500), `AUTH_SAFETY_TIMEOUT` (10 s)
-- `src/lib/utils.ts` — `cn()` (clsx + tailwind-merge), `getInitials(firstName, lastName)`, `getDisplayName(firstName, lastName)`
-- `src/lib/date-utils.ts` / `src/lib/calendar-utils.ts` — date parsing, formatting, and calendar calculations
-- `src/lib/category-colors.ts` — color palette for time-off categories
-- `src/lib/category-form-schema.ts` — Zod validation schema for category forms
-- `src/lib/csv-header-mapping.ts` — `mapHeaders()` (3-phase CSV header auto-detection), `splitFullName()`
-- `src/lib/csv-validation.ts` — `processRows()`, `rowHasErrors()` (CSV row validation with error/warning detection)
-- `src/lib/auth-channel.ts` — `broadcastAuthComplete()`, `onAuthComplete()` (BroadcastChannel for cross-tab auth sync)
-- `src/lib/request-display.ts` — `legacyTypeLabels`, `getCategoryDisplay()` (legacy request type display logic)
-- `src/lib/site-url.ts` — `getSiteUrl()` (returns `VITE_SITE_URL` for auth redirects, falls back to `window.location.origin`)
-- `src/lib/default-categories.ts` — `seedDefaultCategories()` (seeds 5 default time-off categories on workspace creation)
-- `src/lib/time-off-category-utils.ts` — `getAllowancePolicy()` (displays accrual policy text based on category settings)
-
-### Hooks
-
-All in `src/hooks/`. Each wraps one domain's service calls in TanStack Query:
-
-- `use-auth.ts` — simple `useContext(AuthContext)` consumer
-- `use-employees.ts` — `useEmployeeList`, `useEmployeeCounts`, `useEmployee`, `useEmployeeStatusMutation`, `useBulkEmployeeStatusMutation`, `useUpdateEmployeeMutation`, `useInviteEmployeeMutation`, `useDeleteEmployeeMutation`, `usePurgeEmployeeMutation`
-- `use-time-off-requests.ts` — `useTimeOffRequests`, `useMyTimeOffRequests`, `useEmployeeBalance`, `useEmployeeBalances`, `useUpdateEmployeeBalancesMutation`, `useApproveTimeOffRequestMutation`, `useRejectTimeOffRequestMutation`, `useSubmitTimeOffRequestMutation`, `useCreateTimeOffRecordMutation`, `useWithdrawRequestMutation`
-- `use-time-off-categories.ts` — category CRUD queries/mutations
-- `use-departments.ts` — department CRUD queries/mutations
-- `use-holidays.ts` — holiday management queries/mutations
-- `use-image-upload.ts` — avatar/logo file selection: exposes `file`, `preview`, `error`, `inputRef`, `handleSelect`, `handleRemove`. Validates PNG/JPEG ≤ 5 MB.
-- `use-debounced-value.ts` — debounced value for search inputs
-- `use-csv-import.ts` — manages multi-step CSV employee import workflow (upload → preview → import → results), including file parsing, header mapping, validation, and progress tracking
-
-### Access roles
-
-- **Owner** — workspace creator; unique per workspace; can delete the workspace; cannot be deactivated or deleted by admins
-- **Admin** — full access to employees, categories, requests, settings
-- **User** — self-service only: submit/view/withdraw own requests; edit own name + avatar via `/settings`
-
-Role checks happen both at the route level (`AdminRoute` component) and inside RLS policies (`is_workspace_admin()` helper). The `requests` route also switches the rendered page component based on role (admin → `RequestsPage`, user → `EmployeeRequestsPage`).
-
-### Supabase Edge Functions
-
-- `supabase/functions/invite-employee/` — verifies caller JWT + admin role, creates Supabase auth user via admin API, inserts `profiles` row
-- `supabase/functions/delete-employee/` — soft-deletes (`purge: false`: status → `"deleted"`, auth user removed) or permanently purges (`purge: true`: profile row deleted) a single employee; admin-only
-- `supabase/functions/delete-workspace/` — workspace deletion (owner-only, cascades all workspace data)
-- `supabase/functions/slack-oauth/` — handles Slack OAuth callback, stores bot token in `slack_installations`
-- `supabase/functions/slack-events/` — receives Slack event payloads (button clicks, etc.), uses `slack_interaction_log` for idempotency
-- `supabase/functions/slack-notify/` — sends/updates DM notifications to admins via `slack_dm_messages`
-
-Deploy with `supabase functions deploy <function-name>`.
-
-### Layout structure
-
-Non-dashboard: `src/components/auth-layout.tsx`, `protected-route.tsx`, `admin-route.tsx`, `error-boundary.tsx`, `nova-logo.tsx`. Dashboard: `src/components/layout/DashboardLayout.tsx` + `Sidebar.tsx`. CSS token/class details: see `nova-pto-ui-conventions` skill.
-
-### Component conventions
-
-UI primitives in `src/components/ui/`. Key groups:
-- **Combobox**: `combobox-menu.tsx`, `combobox-search-field.tsx`, `combobox-menu-item.tsx`, `combobox-menu-label.tsx`. `location-combobox.tsx` uses `src/data/cities.json` + `src/data/countries.ts`. `employee-combobox.tsx` accepts `employees: ComboboxEmployee[]` prop.
-- **Data table**: `data-table-header-cell.tsx`, `data-table-cell.tsx`, `data-table-pagination.tsx`
-- **Calendar primitives**: `calendar-day-button.tsx`, `calendar-header.tsx`, `calendar-arrow-button.tsx`. Higher-level: `src/components/calendar/` — `CalendarMonthGrid`, `CalendarWeekRow`, `CalendarEventBar`, `CalendarFilters` (wired to the live `/calendar` page via `src/pages/calendar.tsx`).
-- **Shared forms**: `employee-form.tsx` (Add/EditEmployeePage, `mode: "add"|"edit"`), `category-form.tsx` (Add/EditCategoryPage, same pattern).
-
-Coding rules (named exports, data-slot, cva, Radix imports, Button loading prop): see `project-conventions` skill.
-
-## Workflow Orchestration
-
-### 1. Plan Mode Default
-- Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
-- If something goes sideways, STOP and re-plan immediately — don't keep pushing
-- Use plan mode for verification steps, not just building
-- Write detailed specs upfront to reduce ambiguity
-
-### 2. Subagent Strategy
-- Use subagents liberally to keep main context window clean
-- Offload research, exploration, and parallel analysis to subagents
-- For complex problems, throw more compute at it via subagents
-- One task per subagent for focused execution
-
-### 3. Self-Improvement Loop
-- After ANY correction from the user: update `tasks/lessons.md` with the pattern
-- Write rules for yourself that prevent the same mistake
-- Ruthlessly iterate on these lessons until mistake rate drops
-- Review lessons at session start for relevant project
-
-### 4. Verification Before Done
-- Never mark a task complete without proving it works
-- Diff behavior between main and your changes when relevant
-- Ask yourself: "Would a staff engineer approve this?"
-- Run tests, check logs, demonstrate correctness
-
-### 5. Demand Elegance (Balanced)
-- For non-trivial changes: pause and ask "is there a more elegant way?"
-- If a fix feels hacky: "Knowing everything I know now, implement the elegant solution"
-- Skip this for simple, obvious fixes — don't over-engineer
-- Challenge your own work before presenting it
-
-### 6. Autonomous Bug Fixing
-- When given a bug report: just fix it. Don't ask for hand-holding
-- Point at logs, errors, failing tests — then resolve them
-- Zero context switching required from the user
-- Go fix failing CI tests without being told how
-
-## Task Management
-
-1. **Plan First**: Write plan to `tasks/todo.md` with checkable items (create the `tasks/` directory if it doesn't exist)
-2. **Verify Plan**: Check in before starting implementation
-3. **Track Progress**: Mark items complete as you go
-4. **Explain Changes**: High-level summary at each step
-5. **Document Results**: Add review section to `tasks/todo.md`
-6. **Capture Lessons**: Update `tasks/lessons.md` after corrections
-
-## Core Principles
-
-- **Simplicity First**: Make every change as simple as possible. Impact minimal code.
-- **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
-- **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
-
-## Security Rules (enforce always)
-
-### 1. Workspace isolation — every DB write must filter by workspace_id
-Every service-layer UPDATE/DELETE on a workspace-scoped table **must** include `.eq("workspace_id", workspaceId)` as a second filter — even when RLS already protects the data (defense-in-depth). RLS is the last line of defence, not the only one.
-
-```ts
-// ✅ Correct
-supabase.from("profiles").update(data).eq("id", profileId).eq("workspace_id", workspaceId)
-
-// ❌ Wrong — relies solely on RLS
-supabase.from("profiles").update(data).eq("id", profileId)
-```
-
-### 2. Symmetric operations must be fixed symmetrically
-If you fix a security or logic issue in one operation (e.g. `approve_time_off_request`), immediately search for all **symmetric operations** (e.g. `reject_time_off_request`, `withdraw_time_off_request`) and apply the same fix. Never patch one without checking its siblings.
-
-### 3. RPCs must validate workspace ownership of all input IDs
-Any RPC that accepts IDs (request_id, category_id, employee_id) must verify that each ID belongs to the caller's workspace **inside the RPC itself**. Clients cannot be trusted to pass only valid IDs.
-
-### 4. Dates must always use explicit UTC
-All date string construction must use the `Z` suffix to avoid local-timezone off-by-one errors:
-
-```ts
-// ✅ Correct
-new Date(dateStr + "T00:00:00Z")
-
-// ❌ Wrong — interprets in local timezone
-new Date(dateStr + "T00:00:00")
-```
-
-### 5. Env vars must be validated at module load time
-Add a guard at the top of `src/lib/supabase.ts` and any file that reads `import.meta.env.*`:
-
-```ts
-if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
-  throw new Error("Missing required env vars: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY")
-}
-```
-
-### 6. Type signatures must encode business rules
-If a field is forbidden in a business context, the **type must exclude it** — not just runtime validation:
-
-```ts
-// ✅ Correct — "owner" excluded at the type level
-role: "admin" | "user"
-
-// ❌ Wrong — relies on runtime check to reject "owner"
-role: "owner" | "admin" | "user"
-```
+Gates exist in three places and must agree: `AdminRoute`, the rendered page, and
+the RLS policy / RPC.
 
 ---
 
-## Data Integrity Rules
+## Routes
 
-### 7. Every mutation hook must audit cache invalidations
-When writing or modifying a `useMutation`, check the full list of query keys that could be affected — not just the obvious ones. Cross-reference with `src/lib/query-keys.ts`.
+`/` redirects to `/requests`. All page components lazy-loaded.
 
-Common cascade paths:
-- Approve/reject request → invalidate: `timeOffRequestKeys`, `myRequestKeys`, `employeeBalanceKeys`
-- Invite employee → invalidate: `employeeKeys.all`, `employeeKeys.active`, `employeeCounts`
-- Update profile → invalidate: `employeeKeys.detail`, auth context workspace/profile
-
-### 8. Multi-step Edge Functions must be atomic
-Edge Functions that perform multiple DB operations (create user + insert profile, soft-delete + delete auth, etc.) must either:
-- Use a single SQL function/RPC that wraps everything in a transaction, OR
-- Have explicit rollback logic (with documented recovery path) if any step fails
-
-Never leave orphaned auth users or partially-deleted workspaces.
+| Route | Page | Access |
+|---|---|---|
+| `/login`, `/check-email`, `/auth/callback` | login, otp-verification, auth-callback | public |
+| `/access-restricted` | access-restricted | public |
+| `/requests` | requests **or** employee-requests | role-resolved |
+| `/employees` | employees | admin |
+| `/employees/new`, `/employees/import` | add-employee, import-preview | admin |
+| `/employees/:id`, `/employees/:id/edit` | employee-details, edit-employee | admin |
+| `/calendar` | calendar | all |
+| `/time-off-setup` | time-off-setup | admin |
+| `/time-off-setup/new`, `/time-off-setup/:id/edit` | add-category, edit-category | admin |
+| `/settings` | settings **or** user-settings | role-resolved |
 
 ---
 
-## Code Quality Rules
+## Inventory
 
-### 9. Services → Hooks → Components — no exceptions
-Direct `supabase.*` calls are only allowed in `src/lib/*-service.ts` files and `src/lib/supabase.ts`. Auth pages (`login.tsx`, `auth-callback.tsx`) are not exceptions — use `auth-service.ts`.
+### Services — `src/lib/*-service.ts`
 
-### 10. noUnusedLocals and noUnusedParameters must stay enabled
-Do not disable `noUnusedLocals` or `noUnusedParameters` in tsconfig. If enabling them surfaces errors, fix the errors — don't suppress the rule.
+| File | Notes |
+|---|---|
+| `employee-service.ts` | `fetchEmployees` (paginated `{data,count}`), `fetchEmployeeCounts`, `fetchEmployee`, `fetchWorkspaceEmails` (dedupe set for CSV import), `updateEmployee`, `updateEmployeeStatus`, `bulkUpdateEmployeeStatus`, `inviteEmployee`, `deleteEmployee`/`purgeEmployee` (Edge Function, `purge` flag) |
+| `time-off-request-service.ts` | Reads the `time_off_requests_safe` view. Writes via RPCs only: `submit_time_off_request`, `create_time_off_record`, `approve_time_off_request`, `reject_time_off_request`, `withdraw_time_off_request`, `bulk_update_employee_balances`. Also `fetchTimeOffRequests`, `fetchMyTimeOffRequests`, `fetchEmployeeBalance(s)`, `fetchBalanceAdjustmentLog`, `fetchActiveEmployeesForCombobox` |
+| `time-off-category-service.ts` | `fetchTimeOffCategories`, `fetchCategory`, `createCategory`, `updateCategory`, `updateCategoryActive`, `deleteCategory`, `updateCategorySortOrder` (RPC `update_categories_sort_order`), `fetchCategoryAvailability` (RPC `category_availability`) |
+| `settings-service.ts` | `fetchDepartments`, `createDepartment`, `updateDepartment`, `deleteDepartment`, `updateWorkspace`, `updateProfile`, `fetchWorkspaceAdminEmail`, `uploadImage`, `removeImage`, **`deleteWorkspace`** (owner-only, calls the `delete-workspace` Edge Function) |
+| `holiday-service.ts` | `fetchHolidays`, `fetchPublicHolidays` (external Nager API), `createHoliday`, `updateHoliday`, `deleteHoliday`, `bulkDeleteHolidays`, `replaceImportedHolidays` (RPC) |
+| `report-service.ts` | `fetchReportEmployees`, `fetchAllEmployeeBalances`; `generate-report.ts` does the Excel export |
+| `auth-service.ts` | `sendMagicLink`, `exchangeCodeForSession`, `getCurrentSession` |
+| `founder-flow.ts` | First-time provisioning (idempotent). Writes directly — see the layering exceptions above |
+
+### Other `src/lib`
+
+`supabase.ts` (shared client, validates env at load) · `query-keys.ts` (cache key
+factory) · `query-cache-utils.ts` (`removeFromListCache`,
+`removeFromPaginatedCache`) · `constants.ts` · `utils.ts` (`cn`, `getInitials`,
+`getDisplayName`) · `date-utils.ts` · `calendar-utils.ts` · `request-overlap.ts`
+(client-side overlap detection mirroring the server rule) · `balance-utils.ts` ·
+`validation.ts` (`isValidEmail`, shared by form and CSV import) ·
+`category-colors.ts` · `category-form-schema.ts` · `time-off-category-utils.ts`
+(`getAllowancePolicy`) · `csv-header-mapping.ts` · `csv-validation.ts` ·
+`request-display.ts` · `default-categories.ts` · `site-url.ts` ·
+`auth-channel.ts` (cross-tab sync) · `toast.ts` (pub-sub)
+
+`constants.ts`: `IMAGE_ALLOWED_TYPES`, `IMAGE_MAX_SIZE` (5 MB),
+`AUTH_SAFETY_TIMEOUT` (10 s), `INVITE_TIMEOUT_MS` (10 s), `DEBOUNCE_DELAY_MS`
+(300), `TOAST_DURATION_MS` (5 s), `EMPLOYEES_PAGE_SIZE` (100),
+`TIME_OFF_REQUESTS_LIMIT` (1000), `BALANCE_LOG_LIMIT` (500), `HOLIDAYS_LIMIT`
+(2000 — must stay above any realistic count, or the client under-excludes
+holidays relative to the server).
+
+### Hooks — `src/hooks/`
+
+| File | Exports |
+|---|---|
+| `use-auth.ts` | `useAuth` |
+| `use-employees.ts` | `useEmployeeList`, `useEmployeeCounts`, `useEmployee`, `useEmployeeStatusMutation`, `useBulkEmployeeStatusMutation`, `useUpdateEmployeeMutation`, `useInviteEmployeeMutation`, `useDeleteEmployeeMutation`, `usePurgeEmployeeMutation` |
+| `use-time-off-requests.ts` | `useTimeOffRequests`, `useMyTimeOffRequests`, `usePendingRequestCount`, `useActiveEmployees`, `useEmployeeBalance`, `useEmployeeBalances`, `useUpdateEmployeeBalancesMutation`, `useApproveRequestMutation`, `useRejectRequestMutation`, `useSubmitTimeOffRequestMutation`, `useCreateTimeOffRecordMutation`, `useWithdrawRequestMutation` |
+| `use-time-off-categories.ts` | `useTimeOffCategories`, `useCategory`, `useCategoryAvailability`, `useCreateCategoryMutation`, `useUpdateCategoryMutation`, `useToggleCategoryActiveMutation`, `useDeleteCategoryMutation`, `useReorderCategoriesMutation` |
+| `use-departments.ts` | `useDepartments`, `useCreateDepartmentMutation`, `useUpdateDepartmentMutation`, `useDeleteDepartmentMutation` |
+| `use-holidays.ts` | `useHolidays`, `usePublicHolidays`, `useCreateHolidayMutation`, `useUpdateHolidayMutation`, `useDeleteHolidayMutation`, `useBulkDeleteHolidaysMutation`, `useImportHolidaysMutation` |
+| `use-image-upload.ts` | `file`, `preview`, `error`, `inputRef`, `handleSelect`, `handleRemove` (PNG/JPEG ≤ 5 MB) |
+| `use-debounced-value.ts` | Debounce for search inputs |
+| `use-csv-import.ts` | Multi-step import: upload → preview → import → results |
+
+### Types — `src/types/`
+
+`workspace.ts` · `profile.ts` · `employee.ts` (`EmployeeStatus`:
+`active|inactive|deleted`) · `department.ts` · `time-off-request.ts`
+(`TimeOffStatus`: `pending|approved|rejected|withdrawn`; `TimeOffType`;
+`StartPeriod`/`EndPeriod` half-days) · `time-off-category.ts` ·
+`employee-balance.ts` · `balance-adjustment-log.ts` · `holiday.ts` ·
+`calendar.ts` · `csv-import.ts`
+
+### Components
+
+UI primitives in `src/components/ui/`; grouped folders `calendar/`,
+`categories/`, `employees/`, `requests/`, `settings/`, `layout/`. Shared
+mode-based forms: `employee-form.tsx` and `category-form.tsx`
+(`mode: "add" | "edit"`). Conventions, tokens and layout: `nova-pto-ui-conventions`
+skill.
+
+---
+
+## Database
+
+Migrations in `supabase/migrations/` (65 files). Patterns and the pre-push
+checklist: `nova-pto-migration` skill.
+
+### Tables
+
+`workspaces` · `profiles` · `departments` · `time_off_requests` ·
+`time_off_categories` · `holidays` · `employee_balances` ·
+`balance_adjustment_log` · `slack_installations` · `slack_user_mappings` ·
+`slack_interaction_log` · `slack_dm_messages`
+
+Column-level detail is in the README; the schema of record is the migrations.
+
+- `time_off_requests` carries denormalised `employee_name`, `employee_email`,
+  `employee_avatar_url` and `category_name` so history survives renames and
+  deletes, plus `reviewed_by`/`reviewed_at`.
+- `balance_adjustment_log` is append-only, written only by the balance RPCs.
+  Its `reason` values: `manual_adjustment`, `request_approved`, `record_created`,
+  `accrual`, `carryover_capped`, `carryover_expired`, `recalculated`,
+  `overlap_resolved`.
+- Requests are read through the `time_off_requests_safe` view, which masks
+  `comment` and `rejection_reason` from everyone but the owner and admins.
+
+### Triggers, constraints and jobs
+
+| Mechanism | Effect |
+|---|---|
+| `prevent_overlapping_requests` trigger + `time_off_requests_no_overlap` EXCLUDE constraint | One employee cannot hold two pending/approved requests sharing a calendar day. Trigger gives the readable message; the constraint closes the concurrent-write race. |
+| `enforce_category_waiting_period` trigger | Refuses leave before the category's waiting period elapses |
+| `sync_profile_to_requests` trigger | Name/avatar changes propagate to the denormalised columns |
+| `after_category_insert/update_seed_balances` triggers | Creating or re-activating a category seeds balances for active employees |
+| `auto_reject_pending_on_employee_delete` trigger | Soft-deleting an employee auto-rejects their pending requests |
+| `nova-pto-daily-accruals` cron | `apply_accruals(CURRENT_DATE)` nightly at 02:00 UTC |
+
+Accrual engine (`20260826110000_accrual_engine.sql`): `accrual_eligible_from`,
+`accrual_grant_dates`, `accrue_balance`, `apply_accruals`,
+`recalculate_employee_balance`, `seed_balances_for_employee/category`.
+
+> `recalculate_employee_balance` **rebuilds** a balance from the accrual
+> schedule and only counts approved spends with `start_date <= as_of`. Every
+> approval path deducts eagerly regardless of date, so the two models disagree.
+> It is currently called only from one-off backfills, not from `apply_accruals`,
+> so nothing is broken — but never use it to undo a single request. Reverse the
+> exact amount instead.
+
+### Edge Functions — `supabase/functions/`
+
+`invite-employee` · `delete-employee` (soft-delete / purge) · `delete-workspace`
+(owner-only, atomic cascade RPC) · `slack-oauth` · `slack-events` ·
+`slack-notify`. Deploy with `supabase functions deploy <name>` — `db push` does
+not deploy them. Scaffolding and the auth gate: `new-edge-function` skill.
+
+---
+
+## Testing
+
+| Folder | Contents |
+|---|---|
+| `src/test/unit/` | Pure logic (lib utils, hooks) |
+| `src/test/integration/` | Components with mocked services |
+| `src/test/security/` | RLS, RPC grants, privilege escalation, Edge Function auth |
+| `src/test/db/` | Constraints, cascades, triggers, RPC behaviour |
+| `e2e/tests/` | Playwright; helpers in `e2e/fixtures/` |
+| `supabase/tests/` | psql fixtures for repair functions needing owner-level DDL |
+
+`src/test/setup.ts` auto-mocks `@/lib/supabase` globally; tests override as
+needed. Security and DB suites need `supabase start` and `.env.test`, and are
+wrapped in `describe.skipIf(skipIfNoServiceKey())` — **without the service key
+they skip silently and the run still reports success.** Check the count.
+
+Full checklist, the "tests that cannot fail" catalogue, and jsdom gotchas:
+`nova-pto-test-sync` skill.
+
+---
+
+## Rules
+
+### Security
+
+1. **Workspace isolation.** Every service-layer UPDATE/DELETE on a
+   workspace-scoped table includes `.eq("workspace_id", workspaceId)` as a
+   second filter, even where RLS already covers it. RLS is the last line of
+   defence, not the only one.
+2. **Symmetric operations get fixed symmetrically.** Fixing
+   `approve_time_off_request` means checking `reject_…` and `withdraw_…` in the
+   same change. Never patch one sibling alone.
+3. **RPCs validate workspace ownership of every input ID** inside the RPC.
+   Clients cannot be trusted to pass only valid IDs.
+4. **Dates use explicit UTC.** `new Date(s + "T00:00:00Z")`, never
+   `"T00:00:00"` — the latter is a local-timezone off-by-one.
+5. **Env vars are validated at module load**, so a missing one fails fast.
+6. **Types encode business rules.** If a value is forbidden in context, exclude
+   it from the union (`role: "admin" | "user"` where `owner` must not be
+   assignable) rather than rejecting it at runtime.
+7. **Admin gates check role *and* status**, in the client, in RLS, and in Edge
+   Functions.
+
+### Data integrity
+
+8. **Every mutation audits its cache invalidations.** Check the full set of
+   affected keys against `query-keys.ts`, not just the obvious one. Approve or
+   reject touches `timeOffRequestKeys`, `myRequestKeys`, `employeeBalanceKeys`
+   and `balanceAdjustmentLogKeys`; invite touches `employeeKeys.all`,
+   `activeEmployeeKeys` and counts.
+9. **Optimistic `setQueryData` must match the cached shape**, not what the
+   component sees — a hook's `select` runs on read only. Use
+   `query-cache-utils.ts`; a mismatch throws inside the click handler and
+   silently prevents the mutation from firing.
+10. **Multi-step Edge Functions are atomic** — one RPC wrapping a transaction,
+    or explicit rollback with a documented recovery path. Never leave an
+    orphaned auth user or a half-deleted workspace.
+
+### Code quality
+
+11. **Services → Hooks → Components, no exceptions.**
+12. **`noUnusedLocals` / `noUnusedParameters` stay enabled.** Fix the errors
+    they surface; do not suppress the rule.
+13. **Deployment order.** Client first, then the migration, whenever the
+    migration *removes* something the client uses (a REVOKE, a dropped column, a
+    narrowed grant). Add-only restrictions are safe either way.
 
 ---
 
 ## Skills
 
-Invoke these project skills (via Skill tool) when the situation matches:
-
 | Situation | Skill |
-|-----------|-------|
-| Code change done (any bugfix / feature / refactor) — before marking done | `nova-pto-test-sync` |
-| Creating or editing any UI component or page | `nova-pto-ui-conventions` |
-| Writing a new Supabase migration | `nova-pto-migration` |
+|---|---|
+| Any code change is done — before marking it complete | `nova-pto-test-sync` |
+| Creating or editing a UI component or page | `nova-pto-ui-conventions` |
+| Writing a Supabase migration | `nova-pto-migration` |
+| Creating a Supabase Edge Function | `new-edge-function` |
+| Background conventions, auto-loaded | `project-conventions` |
+| Implementing a Figma design (needs the Figma MCP server) | `implement-design` |
+
+---
+
+## Working method
+
+**Plan before non-trivial work.** Anything with 3+ steps or an architectural
+choice gets a plan in `tasks/todo.md` with checkable items, confirmed before
+implementation. Completed task records move to `tasks/archive/`. If the work
+goes sideways, stop and re-plan rather than pushing on.
+
+**Verify before claiming done.** Run the tests, show the output, and prove the
+new test fails without the fix. "The suite is green" is not evidence that
+anything is covered. Report honestly: if a step was skipped or a test fails, say
+so with the output.
+
+**Capture lessons.** After a correction, add the pattern to `tasks/lessons.md`
+as a rule — what went wrong, why, and what to do instead.
+
+**Simplicity and minimal impact.** Change only what the task needs. Find root
+causes rather than adding a workaround. If a fix feels hacky, stop and ask
+whether there is a straightforward version.

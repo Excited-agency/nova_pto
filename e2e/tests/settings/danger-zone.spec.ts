@@ -1,102 +1,91 @@
 import { test, expect } from "@playwright/test"
 import { createTestUser, seedSession, deleteAuthUser, adminClient } from "../../fixtures/auth"
 
+/**
+ * Deleting a workspace is the one irreversible action in the product, so both
+ * halves are pinned: the confirmation gate that stops an accidental click, and
+ * the teardown itself.
+ *
+ * createTestUser sets owner_id to the new user, so the test admin is also the
+ * owner and the danger zone renders — it is owner-only (workspace-section.tsx).
+ */
 test.describe("Danger zone — delete workspace", () => {
-  test("delete button is disabled until correct workspace name is typed", async ({ page }) => {
+  test("delete button stays disabled until the workspace name is typed exactly", async ({ page }) => {
     const adminUser = await createTestUser("admin")
 
     try {
-      await seedSession(page, adminUser)
-      await page.goto("/settings")
-      await page.waitForLoadState("networkidle")
-      await page.waitForTimeout(500)
-
-      // Click the trigger to open the delete dialog
-      const triggerBtn = page.getByRole("button", { name: /delete workspace/i })
-      if ((await triggerBtn.count()) === 0) {
-        // UI not implemented yet — skip gracefully
-        return
-      }
-
-      await triggerBtn.scrollIntoViewIfNeeded()
-      await triggerBtn.click()
-      await page.waitForTimeout(300)
-
-      // The dialog should be open now. The confirm button inside the dialog is disabled initially.
-      // There are now TWO "Delete workspace" buttons: trigger (hidden) + dialog button
-      const dialogDeleteBtn = page.getByRole("button", { name: /delete workspace/i }).last()
-      await expect(dialogDeleteBtn).toBeDisabled()
-
-      // Get actual workspace name from DB
       const { data: ws } = await adminClient
         .from("workspaces")
         .select("name")
         .eq("id", adminUser.workspaceId)
         .single()
 
-      // Confirmation input placeholder equals the workspace name
-      const confirmInput = page.getByPlaceholder(ws!.name)
+      await seedSession(page, adminUser)
+      await page.goto("/settings")
 
-      // Type wrong name — button stays disabled
+      const trigger = page.getByRole("button", { name: "Delete workspace" })
+      await expect(trigger).toBeVisible()
+      await trigger.click()
+
+      // Scope everything to the dialog: the trigger keeps the same accessible
+      // name and stays in the DOM behind it.
+      const dialog = page.getByRole("alertdialog")
+      await expect(dialog).toBeVisible()
+      const confirmDelete = dialog.getByRole("button", { name: "Delete workspace" })
+
+      await expect(confirmDelete).toBeDisabled()
+
+      const confirmInput = dialog.getByPlaceholder(ws!.name)
       await confirmInput.fill("Wrong Name")
-      await expect(dialogDeleteBtn).toBeDisabled()
+      await expect(confirmDelete).toBeDisabled()
 
-      // Type correct name — button should become enabled
-      await confirmInput.clear()
+      // A near-miss must not pass either — the check is equality, not prefix.
+      await confirmInput.fill(ws!.name.slice(0, -1))
+      await expect(confirmDelete).toBeDisabled()
+
       await confirmInput.fill(ws!.name)
-      await expect(dialogDeleteBtn).toBeEnabled()
+      await expect(confirmDelete).toBeEnabled()
     } finally {
       await adminClient.from("workspaces").delete().eq("id", adminUser.workspaceId)
       await deleteAuthUser(adminUser.userId)
     }
   })
 
-  test("confirming delete removes workspace and redirects to /login", async ({ page }) => {
+  test("confirming delete removes the workspace and redirects to /login", async ({ page }) => {
     const adminUser = await createTestUser("admin")
 
-    const { data: ws } = await adminClient
-      .from("workspaces")
-      .select("name")
-      .eq("id", adminUser.workspaceId)
-      .single()
+    try {
+      const { data: ws } = await adminClient
+        .from("workspaces")
+        .select("name")
+        .eq("id", adminUser.workspaceId)
+        .single()
 
-    await seedSession(page, adminUser)
-    await page.goto("/settings")
-    await page.waitForLoadState("networkidle")
-    await page.waitForTimeout(500)
+      await seedSession(page, adminUser)
+      await page.goto("/settings")
 
-    const triggerBtn = page.getByRole("button", { name: /delete workspace/i })
-    if ((await triggerBtn.count()) === 0) {
-      // Danger zone UI not implemented — skip gracefully
+      const trigger = page.getByRole("button", { name: "Delete workspace" })
+      await expect(trigger).toBeVisible()
+      await trigger.click()
+
+      const dialog = page.getByRole("alertdialog")
+      await expect(dialog).toBeVisible()
+
+      await dialog.getByPlaceholder(ws!.name).fill(ws!.name)
+      await dialog.getByRole("button", { name: "Delete workspace" }).click()
+
+      await page.waitForURL(/\/login/, { timeout: 15_000 })
+
+      const { data: deleted } = await adminClient
+        .from("workspaces")
+        .select("id")
+        .eq("id", adminUser.workspaceId)
+        .maybeSingle()
+      expect(deleted).toBeNull()
+    } finally {
+      // Idempotent: the successful path already removed the workspace.
       await adminClient.from("workspaces").delete().eq("id", adminUser.workspaceId)
       await deleteAuthUser(adminUser.userId)
-      return
     }
-
-    await triggerBtn.scrollIntoViewIfNeeded()
-    await triggerBtn.click()
-    await page.waitForTimeout(300)
-
-    // Fill in the confirmation input inside the dialog
-    const confirmInput = page.getByPlaceholder(ws!.name)
-    await confirmInput.fill(ws!.name)
-
-    // Click the confirm delete button (last "Delete workspace" button in dialog)
-    const dialogDeleteBtn = page.getByRole("button", { name: /delete workspace/i }).last()
-    await dialogDeleteBtn.click()
-
-    // Wait for redirect after deletion
-    await page.waitForURL(/\/login/, { timeout: 15_000 })
-    await expect(page).toHaveURL(/\/login/)
-
-    // Verify workspace is gone from DB
-    const { data: deleted } = await adminClient
-      .from("workspaces")
-      .select("id")
-      .eq("id", adminUser.workspaceId)
-      .maybeSingle()
-    expect(deleted).toBeNull()
-
-    await deleteAuthUser(adminUser.userId)
   })
 })

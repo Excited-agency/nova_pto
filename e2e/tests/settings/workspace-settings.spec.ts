@@ -15,7 +15,8 @@ test.describe("Workspace settings", () => {
   test("admin can view settings page", async ({ page }) => {
     await seedSession(page, adminUser)
     await page.goto("/settings")
-    await page.waitForLoadState("networkidle")
+
+    await expect(page.getByPlaceholder("Your workspace")).toBeVisible()
     await expect(page).not.toHaveURL(/\/login/)
     await expect(page).not.toHaveURL(/\/access-restricted/)
   })
@@ -23,9 +24,7 @@ test.describe("Workspace settings", () => {
   test("workspace name field is visible and editable", async ({ page }) => {
     await seedSession(page, adminUser)
     await page.goto("/settings")
-    await page.waitForLoadState("networkidle")
 
-    // Workspace name input has placeholder "Your workspace"
     const nameInput = page.getByPlaceholder("Your workspace")
     await expect(nameInput).toBeVisible()
     await expect(nameInput).toBeEnabled()
@@ -36,27 +35,32 @@ test.describe("Workspace settings", () => {
 
     await seedSession(page, adminUser)
     await page.goto("/settings")
-    await page.waitForLoadState("networkidle")
 
-    // Fill workspace name
     const nameInput = page.getByPlaceholder("Your workspace")
-    await nameInput.clear()
+    await expect(nameInput).toBeVisible()
     await nameInput.fill(newName)
 
-    // Click "Save changes" button
-    const saveBtn = page.getByRole("button", { name: /save changes/i })
-    if ((await saveBtn.count()) > 0) {
-      await saveBtn.click()
-      await page.waitForLoadState("networkidle")
-      await page.waitForTimeout(500)
+    // Save is rendered disabled inside a tooltip until the form is dirty, so
+    // reaching an enabled one also proves the dirty-state tracking works.
+    const saveBtn = page.getByRole("button", { name: "Save changes" })
+    await expect(saveBtn).toBeEnabled()
+    await saveBtn.click()
 
-      // Verify in DB
-      const { data } = await adminClient
-        .from("workspaces")
-        .select("name")
-        .eq("id", adminUser.workspaceId)
-        .single()
-      expect(data?.name).toBe(newName)
-    }
+    await expect(page.getByText("Settings saved")).toBeVisible()
+
+    // Poll the row rather than guessing how long the write takes.
+    await expect
+      .poll(
+        async () => {
+          const { data } = await adminClient
+            .from("workspaces")
+            .select("name")
+            .eq("id", adminUser.workspaceId)
+            .single()
+          return data?.name
+        },
+        { timeout: 10_000 }
+      )
+      .toBe(newName)
   })
 })

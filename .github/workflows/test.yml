@@ -14,6 +14,29 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  # ─── Job 0: Static checks ─────────────────────────────────────────────────
+  # Cheapest job and the only one that catches a type error or a lint failure:
+  # the test suites can all pass while `npm run build` is broken.
+  static:
+    name: Typecheck & Lint
+    runs-on: ubuntu-latest
+    env:
+      VITE_SUPABASE_URL: http://localhost:54321
+      VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRFA0NiK7kyqd6KDlFFC6eNl29zprealmgx9YuBAmTQ
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Production build
+        run: npm run build
+
   # ─── Job 1: Unit + Integration (no Supabase needed) ───────────────────────
   unit-integration:
     name: Unit & Integration Tests

@@ -99,6 +99,7 @@ const EmployeeRow = memo(function EmployeeRow({
 
   return (
     <div
+      data-slot="employee-row"
       className={`flex hover:bg-muted/50${emp.status === "active" ? " cursor-pointer" : ""}`}
       onClick={() => {
         if (emp.status === "active") onNavigateToDetails(emp.id)

@@ -31,6 +31,21 @@ Every UI primitive must have:
 data-slot="component-name"   // e.g. data-slot="button", data-slot="tabs-trigger"
 ```
 
+Repeated list rows also carry one (`data-slot="employee-row"`), because the
+lists are built from divs rather than `<table>`. Without it a row cannot be
+counted or filtered, and an E2E assertion like "the filter left no rows" is
+true whether or not filtering works.
+
+### Icon-only buttons must carry an aria-label
+An icon-only `Button` has no accessible name, which makes it invisible to
+screen readers and unaddressable by `getByRole("button", { name })`. Put the
+row's subject in the label so each is unique:
+```tsx
+<Button size="icon-sm" aria-label={`Approve request from ${req.employee_name}`}>
+  <CircleCheck className="size-4" />
+</Button>
+```
+
 ### Radix — unified package only
 ```ts
 import { Tabs, Slot, Dialog } from "radix-ui"

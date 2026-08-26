@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test"
+import { test, expect, type Page } from "@playwright/test"
 import { createTestUser, seedSession, cleanupTestUser, deleteAuthUser, adminClient } from "../../fixtures/auth"
 import { addEmployeeToWorkspace } from "../../fixtures/test-data"
 
@@ -26,50 +26,55 @@ test.describe("Employee management (admin)", () => {
     await expect(page).not.toHaveURL(/\/access-restricted/)
   })
 
+  /**
+   * The list is built from divs, not a <table>, so rows are addressed by
+   * data-slot="employee-row" (employees.tsx). Counting them is what makes the
+   * search assertions meaningful — a selector that matches nothing would make
+   * "the filter returned no rows" true whether or not filtering works.
+   */
+  const rows = (page: Page) => page.locator('[data-slot="employee-row"]')
+
   test("employees table shows workspace members", async ({ page }) => {
     await seedSession(page, adminUser)
     await page.goto("/employees")
-    await page.waitForLoadState("networkidle")
 
-    // Wait for React Query to finish loading employees
-    // The employees page uses div rows (not tr), so look for employee email or name text
-    await page.waitForTimeout(2000)
-
-    // Check for either admin or employee name/email appearing in the page
-    const adminText = page.getByText("Admin Test").or(page.getByText("Employee Test"))
-      .or(page.getByText(adminUser.email)).or(page.getByText(employeeUser.email))
-    const count = await adminText.count()
-    expect(count).toBeGreaterThanOrEqual(1)
+    // Admin and the employee moved into the workspace — both must be listed.
+    // Scoped to rows: the signed-in admin's email also appears in the sidebar.
+    await expect(rows(page)).toHaveCount(2)
+    await expect(rows(page).filter({ hasText: adminUser.email })).toHaveCount(1)
+    await expect(rows(page).filter({ hasText: employeeUser.email })).toHaveCount(1)
   })
 
-  test("search filters employee list", async ({ page }) => {
+  test("search narrows the list, and clearing it restores the list", async ({ page }) => {
     await seedSession(page, adminUser)
     await page.goto("/employees")
-    await page.waitForLoadState("networkidle")
-    await page.waitForTimeout(500)
+    await expect(rows(page)).toHaveCount(2)
 
-    const searchBox = page.getByRole("textbox").or(page.getByRole("searchbox")).first()
-    if ((await searchBox.count()) > 0) {
-      await searchBox.fill("ZZZNOMATCH999")
-      await page.waitForTimeout(700) // debounce
+    const searchBox = page.getByPlaceholder("Search for employees...")
 
-      const rows = page.locator("tbody tr")
-      const count = await rows.count()
-      expect(count).toBe(0)
-    }
+    // A term nobody matches empties the list. Asserted against a selector that
+    // is known to match when the list is populated, so zero means filtered.
+    await searchBox.fill("ZZZNOMATCH999")
+    await expect(rows(page)).toHaveCount(0)
+
+    // A term matching exactly one employee leaves exactly that one.
+    await searchBox.fill(employeeUser.email)
+    await expect(rows(page)).toHaveCount(1)
+    await expect(rows(page).filter({ hasText: employeeUser.email })).toHaveCount(1)
+
+    await searchBox.clear()
+    await expect(rows(page)).toHaveCount(2)
   })
 
-  test("clicking employee row navigates to employee details", async ({ page }) => {
+  test("clicking an employee row opens that employee's details", async ({ page }) => {
     await seedSession(page, adminUser)
     await page.goto("/employees")
-    await page.waitForLoadState("networkidle")
-    await page.waitForTimeout(500)
+    await expect(rows(page)).toHaveCount(2)
 
-    const rows = page.locator("tbody tr")
-    if ((await rows.count()) > 0) {
-      await rows.first().click()
-      await page.waitForLoadState("networkidle")
-      await expect(page).toHaveURL(/\/employees\//)
-    }
+    // Click the row for a known employee, and check the URL carries that
+    // employee's id — not merely that the path changed.
+    await rows(page).filter({ hasText: employeeUser.email }).click()
+
+    await expect(page).toHaveURL(new RegExp(`/employees/${employeeUser.userId}$`))
   })
 })

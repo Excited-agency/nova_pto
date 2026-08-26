@@ -31,10 +31,22 @@ test.describe("Employee requests (self-service)", () => {
   })
 
   test("employee sees only their own requests", async ({ page }) => {
-    const myReqId = await createPendingRequest(employeeUser.userId, adminUser.workspaceId, categoryId)
+    // The employee's row shows category, period, comment and status — no name
+    // (employee-requests.tsx). So the comment is the only field that can carry
+    // a marker distinguishing one person's request from another's.
+    const tag = Date.now()
+    const mine = `MINE-${tag}`
+    const theirs = `THEIRS-${tag}`
 
-    // Create another user in the same workspace
-    const otherEmail = `other-${Date.now()}@test.invalid`
+    const myReqId = await createPendingRequest(
+      employeeUser.userId,
+      adminUser.workspaceId,
+      categoryId,
+      { comment: mine }
+    )
+
+    // Another user in the same workspace, whose request must stay invisible.
+    const otherEmail = `other-${tag}@test.invalid`
     const otherId = await createEphemeralAuthUser(otherEmail)
 
     await adminClient.from("profiles").insert({
@@ -44,24 +56,22 @@ test.describe("Employee requests (self-service)", () => {
       email: otherEmail,
       status: "active",
     })
-    await createPendingRequest(otherId, adminUser.workspaceId, null)
+    await createPendingRequest(otherId, adminUser.workspaceId, null, { comment: theirs })
 
-    await seedSession(page, employeeUser)
-    await page.goto("/requests")
-    await page.waitForLoadState("networkidle")
-    await page.waitForTimeout(2000)
+    try {
+      await seedSession(page, employeeUser)
+      await page.goto("/requests")
 
-    // Employee should see at least their own pending request
-    // Requests page uses div rows, look for "Pending" status text or "Test Employee" name
-    const pendingText = page.getByText("Pending").or(page.getByText("Test Employee"))
-    const count = await pendingText.count()
-    expect(count).toBeGreaterThanOrEqual(1)
-
-    // Cleanup
-    await adminClient.from("time_off_requests").delete().eq("id", myReqId)
-    await adminClient.from("time_off_requests").delete().eq("profile_id", otherId)
-    await adminClient.from("profiles").delete().eq("id", otherId)
-    await deleteAuthUser(otherId)
+      // Own request present first — that also proves the list finished loading,
+      // which is what makes the absence check below mean something.
+      await expect(page.getByText(mine)).toBeVisible()
+      await expect(page.getByText(theirs)).toHaveCount(0)
+    } finally {
+      await adminClient.from("time_off_requests").delete().eq("id", myReqId)
+      await adminClient.from("time_off_requests").delete().eq("profile_id", otherId)
+      await adminClient.from("profiles").delete().eq("id", otherId)
+      await deleteAuthUser(otherId)
+    }
   })
 
   test("employee cannot access /employees page", async ({ page }) => {
@@ -87,20 +97,26 @@ test.describe("Employee requests (self-service)", () => {
   })
 
   test("employee can view their pending requests on /requests", async ({ page }) => {
+    const marker = `VIEW-${Date.now()}`
     const reqId = await createPendingRequest(
       employeeUser.userId,
       adminUser.workspaceId,
-      categoryId
+      categoryId,
+      { comment: marker }
     )
 
-    await seedSession(page, employeeUser)
-    await page.goto("/requests")
-    await page.waitForLoadState("networkidle")
+    try {
+      await seedSession(page, employeeUser)
+      await page.goto("/requests")
 
-    await expect(page).not.toHaveURL(/\/login/)
-    await expect(page).not.toHaveURL(/\/access-restricted/)
-
-    await adminClient.from("time_off_requests").delete().eq("id", reqId)
+      await expect(page).not.toHaveURL(/\/login/)
+      await expect(page).not.toHaveURL(/\/access-restricted/)
+      // The point of the test is the row, not just the route.
+      await expect(page.getByText(marker)).toBeVisible()
+      await expect(page.getByText("Pending")).toBeVisible()
+    } finally {
+      await adminClient.from("time_off_requests").delete().eq("id", reqId)
+    }
   })
 
   test("employee request page does not show admin approve/reject buttons", async ({ page }) => {
@@ -110,16 +126,17 @@ test.describe("Employee requests (self-service)", () => {
       categoryId
     )
 
-    await seedSession(page, employeeUser)
-    await page.goto("/requests")
-    await page.waitForLoadState("networkidle")
+    try {
+      await seedSession(page, employeeUser)
+      await page.goto("/requests")
 
-    // Admin-only buttons should NOT be present for non-admins
-    const approveBtn = page.getByRole("button", { name: /^approve$/i })
-    const rejectBtn = page.getByRole("button", { name: /^reject$/i })
-    await expect(approveBtn).toHaveCount(0)
-    await expect(rejectBtn).toHaveCount(0)
-
-    await adminClient.from("time_off_requests").delete().eq("id", reqId)
+      // These are the row buttons' real accessible names (request-row.tsx);
+      // the same patterns are clicked successfully in admin-requests.spec.ts,
+      // so a zero count here means absent rather than merely unmatched.
+      await expect(page.getByRole("button", { name: /^Approve request from / })).toHaveCount(0)
+      await expect(page.getByRole("button", { name: /^Reject request from / })).toHaveCount(0)
+    } finally {
+      await adminClient.from("time_off_requests").delete().eq("id", reqId)
+    }
   })
 })
